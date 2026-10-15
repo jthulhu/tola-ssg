@@ -1,0 +1,92 @@
+name: Publish VS Code Extension
+
+# The VS Code client is published only from a run somebody started here: a release run never
+# publishes it, so the version the marketplaces learn is always a decision its own run made.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag the extension is built from (e.g. v0.8.0). The version published is the extension's own."
+        required: true
+        type: string
+      marketplace:
+        description: "Marketplaces that receive this version."
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - vscode
+          - open-vsx
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: publish-vscode-extension-${{ github.event.inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish the VS Code extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag }}
+      MARKETPLACE: ${{ github.event.inputs.marketplace }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.inputs.tag }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-typescript
+      - name: Package the extension this tag ships
+        run: just vscode::package
+      - name: Check the tag ships one package
+        working-directory: extensions/vscode
+        run: |
+          set -euo pipefail
+          set -- *.vsix
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::${RELEASE_TAG} packages no single VSIX: $*"
+            exit 1
+          fi
+          # The version this publishes is the manifest's own: the client keeps its own version, so
+          # the tag only selects the source the package is built from.
+          echo "publishing $1 from ${RELEASE_TAG}"
+      - name: List what the package contains
+        working-directory: extensions/vscode
+        run: deno run -A @vscode/vsce ls --no-dependencies
+      - name: Publish to the selected marketplaces
+        working-directory: extensions/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          set -euo pipefail
+          set -- *.vsix
+          vsix="$1"
+          case "$MARKETPLACE" in
+            both) markets="vscode open-vsx" ;;
+            vscode) markets="vscode" ;;
+            open-vsx) markets="open-vsx" ;;
+            *)
+              echo "::error::unknown marketplace: $MARKETPLACE"
+              exit 1
+              ;;
+          esac
+          for market in $markets; do
+            if [ "$market" = "vscode" ]; then token="${VSCE_PAT:-}"; else token="${OVSX_PAT:-}"; fi
+            if [ -z "$token" ]; then
+              echo "::error::$market was selected and holds no token secret"
+              exit 1
+            fi
+            case "$market" in
+              vscode) deno run -A @vscode/vsce publish --no-dependencies --packagePath "$vsix" ;;
+              open-vsx) deno run -A ovsx publish "$vsix" ;;
+            esac
+          done

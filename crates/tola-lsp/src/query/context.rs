@@ -9,6 +9,7 @@ use tola_build::cancellation::BuildCancellation;
 use tola_build::check::{SourceDiagnosticSession, SourceRevision};
 use tola_build::config::ResolvedSiteConfig;
 use tola_typst::typst::syntax::{FileId, Source, SyntaxMode, VirtualRoot};
+use tola_typst_syntax::names::SourceNames;
 
 use crate::compiler::RevisionCompilations;
 use crate::protocol::{CheckProgress, SourceQuery};
@@ -72,6 +73,8 @@ pub(super) struct Selection<'a> {
     pub(super) cursor: usize,
     pub(super) syntax: SelectedSyntax,
     pub(super) check_progress: CheckProgress,
+    /// The name index the connection built for this document, while it is the one asked about.
+    pub(super) indexed_names: Option<Arc<SourceNames>>,
 }
 
 pub(super) enum SelectedSyntax {
@@ -92,6 +95,7 @@ impl<'a> Selection<'a> {
         cursor: usize,
         query: &SourceQuery,
         check_progress: CheckProgress,
+        indexed_names: Option<Arc<SourceNames>>,
     ) -> Self {
         let syntax = match query {
             SourceQuery::Completion(_) => tola_typst_syntax::syntax::import(source, cursor)
@@ -135,6 +139,7 @@ impl<'a> Selection<'a> {
                     cursor,
                     syntax: SelectedSyntax::Expression,
                     check_progress,
+                    indexed_names,
                 };
             }
             // A cursor question at an import item's own name reads the export it names: the name
@@ -154,7 +159,23 @@ impl<'a> Selection<'a> {
             cursor,
             syntax,
             check_progress,
+            indexed_names,
         }
+    }
+
+    /// The name index of one source, reusing the document's own index while it is that document.
+    ///
+    /// The connection builds the open document's index once per revision, so a query about that
+    /// document at the same bytes reads it instead of walking the tree again; another document, or
+    /// this one at other bytes, gets its own index.
+    pub(super) fn names_of(&self, source: &Source) -> Arc<SourceNames> {
+        if let Some(names) = &self.indexed_names
+            && source.id() == self.source.id()
+            && source.text() == self.source.text()
+        {
+            return Arc::clone(names);
+        }
+        Arc::new(SourceNames::new(source.clone()))
     }
 
     /// Whether the cursor stands at a member position in code, where only the receiver's own
@@ -448,6 +469,25 @@ mod tests {
         .prop_map(String::from_iter)
     }
 
+    /// The document's own index answers a query about that document, and a copy at other bytes —
+    /// an unsaved edit, a package file — gets its own.
+    #[test]
+    fn names_reuse_follows_the_document_text() {
+        let source = Source::detached("#let value = 1\n#value\n".to_owned());
+        let indexed = Arc::new(SourceNames::new(source.clone()));
+        let selection = Selection::new(
+            &source,
+            source.text().len(),
+            &completion_query(Position::new(0, 0)),
+            CheckProgress::NotChecked,
+            Some(Arc::clone(&indexed)),
+        );
+        assert!(Arc::ptr_eq(&selection.names_of(&source), &indexed));
+
+        let edited = Source::new(source.id(), "#let value = 2\n#value\n".to_owned());
+        assert!(!Arc::ptr_eq(&selection.names_of(&edited), &indexed));
+    }
+
     /// The ranges of every call nested inside `node`.
     fn call_ranges(node: &LinkedNode<'_>) -> Vec<std::ops::Range<usize>> {
         let mut ranges = Vec::new();
@@ -494,6 +534,7 @@ mod tests {
                     cursor,
                     &completion_query(position),
                     CheckProgress::NotChecked,
+                    None,
                 );
                 let prefix = identifier_prefix(&text, cursor);
                 let (range, typed) = selection
@@ -566,7 +607,7 @@ mod tests {
                         cursor
                     );
                 }
-                if let Some(call) = meta_call(&source, cursor) {
+                if let Some(call) = meta_call(&source, cursor, &names) {
                     if let Some(key) = meta_key(&source, cursor, &call) {
                         prop_assert!(
                             key.typed.start <= cursor && cursor <= key.typed.end,

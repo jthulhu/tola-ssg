@@ -265,7 +265,7 @@ impl<W: Write, D: Fn(&[Diagnostic])> Connection<W, D> {
     }
 
     /// Show the author one message the client puts in front of them.
-    fn show_message(&mut self, typ: MessageType, message: String) -> Result<()> {
+    pub(super) fn show_message(&mut self, typ: MessageType, message: String) -> Result<()> {
         self.notify(
             notification::ShowMessage::METHOD,
             lsp_types::ShowMessageParams { typ, message },

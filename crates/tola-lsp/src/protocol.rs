@@ -346,22 +346,46 @@ pub(super) struct FormatterSettings {
     pub prose_wrap: Option<bool>,
 }
 
+/// What an author is told when a formatter setting holds a value this server cannot read.
+const UNREAD_PRINT_WIDTH: &str =
+    "Tola cannot read the `tola.formatterPrintWidth` setting; set it to a number";
+
+/// What an author is told when the prose-wrap setting holds a value this server cannot read.
+const UNREAD_PROSE_WRAP: &str =
+    "Tola cannot read the `tola.formatterProseWrap` setting; set it to `true` or `false`";
+
 impl Settings {
-    /// The settings one settings value has, which is the table a client sends in
-    /// `workspace/didChangeConfiguration` or one section of a `workspace/configuration` answer.
-    pub(super) fn read(value: &serde_json::Value) -> Self {
+    /// The settings one settings value has, and one message per setting it named with a value this
+    /// server cannot read.
+    ///
+    /// The value is the table a client sends in `workspace/didChangeConfiguration` or one section
+    /// of a `workspace/configuration` answer. A value the reader cannot use is stated rather than
+    /// silently ignored, and the message names the editor setting an author can change: the two
+    /// formatter keys are the settings clients declare, while a check mode or a preview origin has
+    /// no author-facing key to point at.
+    pub(super) fn read(value: &serde_json::Value) -> (Self, Vec<&'static str>) {
         let formatter = value
             .get("formatter")
             .and_then(serde_json::Value::as_object);
-        Self {
+        let named = |key: &str| formatter.is_some_and(|formatter| formatter.contains_key(key));
+        let print_width = formatter
+            .and_then(|formatter| formatter.get("printWidth"))
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|width| usize::try_from(width).ok());
+        let prose_wrap = formatter
+            .and_then(|formatter| formatter.get("proseWrap"))
+            .and_then(serde_json::Value::as_bool);
+        let mut unread = Vec::new();
+        if named("printWidth") && print_width.is_none() {
+            unread.push(UNREAD_PRINT_WIDTH);
+        }
+        if named("proseWrap") && prose_wrap.is_none() {
+            unread.push(UNREAD_PROSE_WRAP);
+        }
+        let settings = Self {
             formatter: FormatterSettings {
-                print_width: formatter
-                    .and_then(|formatter| formatter.get("printWidth"))
-                    .and_then(serde_json::Value::as_u64)
-                    .and_then(|width| usize::try_from(width).ok()),
-                prose_wrap: formatter
-                    .and_then(|formatter| formatter.get("proseWrap"))
-                    .and_then(serde_json::Value::as_bool),
+                print_width,
+                prose_wrap,
             },
             check_mode: value
                 .get("checkMode")
@@ -371,7 +395,8 @@ impl Settings {
                 .get("previewOrigin")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_owned),
-        }
+        };
+        (settings, unread)
     }
 
     /// Whether these settings named nothing this server reads.

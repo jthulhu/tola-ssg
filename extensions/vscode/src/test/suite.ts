@@ -462,10 +462,15 @@ export async function run(): Promise<void> {
       const warnings = vscode.languages.getDiagnostics(site.source).filter((diagnostic) =>
         diagnostic.source === 'tola' && diagnostic.severity === vscode.DiagnosticSeverity.Warning
       )
-      assert.equal(warnings.length, 1)
+      // The compiler's own warning and Tola's advice about the same font are both the author's to
+      // read: a hint that says more than the report it overlaps is not dropped.
+      const messages = new Set(warnings.map((warning) =>
+        warning.message
+      ))
+      assert.equal(messages.size, 2, JSON.stringify([...messages]))
       const status = await workbenchText({ status: 'checked \\(', capture: true })
       assert.doesNotMatch(status, /not checked|failed/)
-      assert.equal(status.match(/\((\d+) diagnostic/)?.[1], '1')
+      assert.equal(status.match(/\((\d+) diagnostic/)?.[1], '2')
     }, { content: '#set text(font: "Tola E2E absent font")\nWarning-bearing source.\n' }))
 
   await check('Failed sources retain check feedback', () =>

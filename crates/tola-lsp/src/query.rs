@@ -111,9 +111,12 @@ pub(super) fn respond(
             id = mirrored;
         }
     }
-    let source = match view.by_id(id) {
-        Some(snapshot) => Some(snapshot.source.clone()),
-        None => load_source(id, config, overrides, &package_access.boundary)?,
+    let (source, indexed_names) = match view.by_id(id) {
+        Some(snapshot) => (Some(snapshot.source.clone()), Some(snapshot.names())),
+        None => (
+            load_source(id, config, overrides, &package_access.boundary)?,
+            None,
+        ),
     };
     let Some(source) = source else {
         return Ok(unavailable(query));
@@ -157,7 +160,7 @@ pub(super) fn respond(
         return Ok(reply);
     }
     let result = {
-        let selection = Selection::new(&source, cursor, query, check_progress);
+        let selection = Selection::new(&source, cursor, query, check_progress, indexed_names);
         let revision = selection.realize(
             session,
             compilations,
@@ -477,7 +480,7 @@ impl<'a> Selection<'a> {
                 SourceReply::DocumentColors(Some(colors::document(self.source)?))
             }
             SourceQuery::ColorPresentations(params) => SourceReply::ColorPresentations(Some(
-                colors::presentations(params.color, params.range),
+                colors::presentations(self.source, params.color, params.range),
             )),
             SourceQuery::InlayHints(params) => {
                 let mut hints = hints::hints(
@@ -569,7 +572,7 @@ impl<'a> Selection<'a> {
                 SourceReply::DocumentColors(Some(colors::document(self.source)?))
             }
             SourceQuery::ColorPresentations(params) => SourceReply::ColorPresentations(Some(
-                colors::presentations(params.color, params.range),
+                colors::presentations(self.source, params.color, params.range),
             )),
             SourceQuery::Completion(_) => {
                 completion_reply(postfix::completions(self.source, self.cursor))

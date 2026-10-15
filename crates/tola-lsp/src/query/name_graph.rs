@@ -206,9 +206,9 @@ pub(crate) fn source_reply(
         SourceQuery::DocumentColors(_) => {
             SourceReply::DocumentColors(Some(colors::document(source)?))
         }
-        SourceQuery::ColorPresentations(params) => {
-            SourceReply::ColorPresentations(Some(colors::presentations(params.color, params.range)))
-        }
+        SourceQuery::ColorPresentations(params) => SourceReply::ColorPresentations(Some(
+            colors::presentations(source, params.color, params.range),
+        )),
         _ => return Ok(None),
     }))
 }

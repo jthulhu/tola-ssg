@@ -4,10 +4,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use lsp_types::{
     Diagnostic as EditorDiagnostic, DiagnosticRelatedInformation, DiagnosticSeverity,
-    DiagnosticTag, Location as EditorLocation, NumberOrString, Range, Uri,
+    DiagnosticTag, Location as EditorLocation, NumberOrString, Position, Range, Uri,
 };
 use tola_build::diagnostic::{Diagnostic, Location, Severity, SourcePosition, SourceRange};
 use tola_typst_syntax::position::{Utf16Position, Utf16Range, byte_offset as source_byte_offset};
@@ -91,7 +91,7 @@ pub(super) fn editor_diagnostic(
     let path = located
         .as_deref()
         .map_or_else(|| entry.to_path_buf(), Path::to_path_buf);
-    let range = diagnostic_range(primary, located.as_deref(), texts)?;
+    let range = diagnostic_range(primary, located.as_deref(), texts);
     let mut projected = EditorDiagnostic::new(
         range,
         Some(match diagnostic.severity {
@@ -205,7 +205,7 @@ fn add_related(
         .push(DiagnosticRelatedInformation {
             location: EditorLocation::new(
                 client_root.address(path)?,
-                diagnostic_range(Some(location), Some(path), texts)?,
+                diagnostic_range(Some(location), Some(path), texts),
             ),
             message: description,
         });
@@ -299,34 +299,40 @@ fn project_range(text: &ProjectedText, range: &SourceRange) -> Option<Range> {
 /// A range a producer retained, and one inferred from its line and column, both hold the
 /// compiler's line model: each end's byte offset is read in that model and the position the client
 /// addresses is taken from the same bytes, so a source whose lines break differently lands on the
-/// line the client counts. A range no text answers keeps the producer's own coordinates.
+/// line the client counts. A range no text answers keeps the producer's own coordinates while the
+/// protocol can hold them and they run forwards; coordinates beyond the protocol's own bounds, and
+/// ones that run backwards, anchor at the document's first byte, because the publish that carries
+/// every other diagnostic is worth more than the position of one.
 fn diagnostic_range(
     location: Option<&Location>,
     path: Option<&Path>,
     texts: &mut DiagnosticTexts<'_>,
-) -> Result<Range> {
+) -> Range {
     let Some(location) = location else {
-        return Ok(Range::default());
+        return Range::default();
     };
     let range = location
         .range
         .unwrap_or_else(|| inferred_source_range(location, path, texts));
     // A range that names the document's own first byte is the same in either model.
     if range.start == range.end && range.start.line == 0 && range.start.character == 0 {
-        return Ok(Range::default());
+        return Range::default();
     }
     if let Some(projected) = path
         .and_then(|path| texts.text(path))
         .and_then(|text| project_range(text, &range))
     {
-        return Ok(projected);
+        return projected;
     }
-    Ok(Range::new(
-        position::checked_position(range.start.line, range.start.character)
-            .context("diagnostic range start exceeds LSP position bounds")?,
-        position::checked_position(range.end.line, range.end.character)
-            .context("diagnostic range end exceeds LSP position bounds")?,
-    ))
+    let start = position::checked_position(range.start.line, range.start.character)
+        .unwrap_or_else(|| Position::new(0, 0));
+    let end = position::checked_position(range.end.line, range.end.character)
+        .unwrap_or_else(|| Position::new(0, 0));
+    if end < start {
+        Range::new(start, start)
+    } else {
+        Range::new(start, end)
+    }
 }
 
 /// The range a location that retained none addresses.
@@ -464,6 +470,76 @@ mod tests {
         assert_eq!(
             diagnostic.range,
             Range::new(Position::new(0, 4), Position::new(0, 7))
+        );
+    }
+
+    /// A range the protocol cannot hold anchors at the document's first byte, so the publish that
+    /// carries every other diagnostic still happens.
+    #[test]
+    fn absurd_coordinates_anchor_at_the_start() {
+        let mut site = Site::new(&[("content/page.typ", "Body\n")]);
+        site.publish(vec![
+            Diagnostic::at_path(
+                tola_build::codes::typst::COMPILE,
+                Severity::Error,
+                "content/page.typ",
+                "absurd span",
+            )
+            .with_source_range(SourceRange {
+                start: SourcePosition {
+                    line: usize::MAX,
+                    character: 0,
+                },
+                end: SourcePosition {
+                    line: usize::MAX,
+                    character: 3,
+                },
+            }),
+        ]);
+        let diagnostics = site.diagnostics();
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("one diagnostic: {diagnostics:?}");
+        };
+        assert_eq!(
+            diagnostic.range,
+            Range::new(Position::new(0, 0), Position::new(0, 0))
+        );
+    }
+
+    /// Coordinates that run backwards answer an empty range where the report began.
+    #[test]
+    fn reversed_range_collapses_to_its_start() {
+        let mut site = Site::new(&[("content/page.typ", "Body\n")]);
+        let mut diagnostic = Diagnostic::at_path(
+            tola_build::codes::typst::COMPILE,
+            Severity::Error,
+            "content/page.typ",
+            "reversed span",
+        );
+        diagnostic.location = Some(Location {
+            path: "elsewhere/page.typ".into(),
+            line: Some(2),
+            column: Some(1),
+            range: Some(SourceRange {
+                start: SourcePosition {
+                    line: 1,
+                    character: 4,
+                },
+                end: SourcePosition {
+                    line: 0,
+                    character: 0,
+                },
+            }),
+            source_lines: Vec::new(),
+        });
+        site.publish(vec![diagnostic]);
+        let diagnostics = site.diagnostics();
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("one diagnostic: {diagnostics:?}");
+        };
+        assert_eq!(
+            diagnostic.range,
+            Range::new(Position::new(1, 4), Position::new(1, 4))
         );
     }
 

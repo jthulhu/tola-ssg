@@ -3,7 +3,6 @@
 
 use std::collections::BTreeMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use lsp_types::{
@@ -299,9 +298,7 @@ impl Selection<'_> {
         };
         let fields = semantics.member_values(&target)?;
         let receivers = semantics.values(&target)?;
-        let names = Arc::new(tola_typst_syntax::names::SourceNames::new(
-            self.source.clone(),
-        ));
+        let names = self.names_of(self.source);
         let (root, path) = match field_chain(&target) {
             Some((root, path)) => (root, path),
             None => (target.clone(), Vec::new()),
@@ -393,7 +390,7 @@ impl Selection<'_> {
         config: &ResolvedSiteConfig,
         semantics: &mut Semantic<'_>,
     ) -> Result<Option<Vec<CompletionItem>>> {
-        let Some(call) = meta_call(self.source, self.cursor) else {
+        let Some(call) = meta_call(self.source, self.cursor, &self.names_of(self.source)) else {
             return Ok(None);
         };
         let Some(key) = meta_key(self.source, self.cursor, &call) else {

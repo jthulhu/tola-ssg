@@ -439,6 +439,8 @@ pub struct Call {
     pub suffix: Range<usize>,
     /// The index of the argument the at sits in.
     pub active_argument: usize,
+    /// The name the argument the at sits in writes, when the argument is a named one.
+    pub argument_name: Option<Range<usize>>,
     /// What the call calls.
     pub target: CallTarget,
 }
@@ -477,14 +479,25 @@ pub fn call(source: &Source, at: usize) -> Option<Call> {
                 CallTarget::Function => callee.range().end,
                 CallTarget::Field { receiver, .. } => receiver.end,
             };
+            let active_argument = args
+                .children()
+                .filter(|node| node.kind() == SyntaxKind::Comma && node.range().end <= at)
+                .count();
+            let argument_name = args
+                .cast::<ast::Args>()
+                .and_then(|arguments| arguments.items().nth(active_argument))
+                .and_then(|argument| match argument {
+                    ast::Arg::Named(named) => Some(named.name().span()),
+                    ast::Arg::Pos(_) | ast::Arg::Spread(_) => None,
+                })
+                .and_then(|name| args.find(name))
+                .map(|name| name.range());
             return Some(Call {
                 suffix: suffix_start..node.range().end,
                 callee: callee.range(),
                 target,
-                active_argument: args
-                    .children()
-                    .filter(|node| node.kind() == SyntaxKind::Comma && node.range().end <= at)
-                    .count(),
+                active_argument,
+                argument_name,
             });
         }
         node = node.parent()?.clone();
@@ -536,5 +549,25 @@ mod tests {
             None,
             "a call with no path argument names none"
         );
+    }
+
+    /// The name a named argument writes at the cursor, and none where the argument is written
+    /// without one.
+    #[test]
+    fn call_names_its_active_named_argument() {
+        let marked = "#strong(delta: |300)";
+        let at = marked.find('|').expect("an offset marker");
+        let text = marked.replace('|', "");
+        let source = Source::detached(text.clone());
+        let named = call(&source, at).expect("the call");
+        assert_eq!(
+            named.argument_name.map(|name| text[name].to_owned()),
+            Some("delta".to_owned())
+        );
+
+        let marked = "#strong(|300)";
+        let at = marked.find('|').expect("an offset marker");
+        let source = Source::detached(marked.replace('|', ""));
+        assert_eq!(call(&source, at).expect("the call").argument_name, None);
     }
 }

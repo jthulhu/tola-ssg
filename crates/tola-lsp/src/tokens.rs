@@ -72,6 +72,7 @@ pub(super) fn in_range(
 fn encoded(source: &Source, names: &NameGraph, keep: impl Fn(&Token) -> bool) -> SemanticTokens {
     let mut encoder = Encoder {
         source,
+        first_break: crate::position::first_break(source.text()),
         tokens: Vec::new(),
         previous: None,
     };
@@ -157,6 +158,8 @@ pub(super) fn delta(previous: &SemanticTokens, current: &SemanticTokens) -> Sema
 /// Emits tokens in document order, each encoded relative to the one before it.
 struct Encoder<'a> {
     source: &'a Source,
+    /// Where the compiler's line model first parts from the protocol's, found once per document.
+    first_break: Option<usize>,
     tokens: Vec<SemanticToken>,
     /// The line and column of the last token, which a delta is measured from.
     previous: Option<(u32, u32)>,
@@ -196,7 +199,9 @@ impl Encoder<'_> {
             let start = range.start.max(line_start);
             // The segment lies inside one line, so its two ends are the protocol positions that
             // bound it and the text between them is its length.
-            let Some(line_range) = crate::position::utf16_range(lines, start..end) else {
+            let Some(line_range) =
+                crate::position::utf16_range_indexed(lines, start..end, self.first_break)
+            else {
                 continue;
             };
             if line_range.start.line != line_range.end.line

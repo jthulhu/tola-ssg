@@ -26,13 +26,16 @@ pub(super) struct MetaKey {
 
 /// The `#tola-meta` call the cursor addresses, when this file establishes the callee as the
 /// package function and the call writes a dictionary argument.
-pub(super) fn meta_call(source: &Source, cursor: usize) -> Option<MetaCall> {
-    let names = tola_typst_syntax::names::SourceNames::new(source.clone());
+pub(super) fn meta_call(
+    source: &Source,
+    cursor: usize,
+    names: &tola_typst_syntax::names::SourceNames,
+) -> Option<MetaCall> {
     let node = call_around(source, cursor)?;
     let call = node.cast::<ast::FuncCall>()?;
     let callee = node.find(call.callee().span())?;
     if !calls_package_member(
-        &names,
+        names,
         &callee,
         tola_packages::SOURCE_PACKAGE,
         tola_packages::TOLA_META,

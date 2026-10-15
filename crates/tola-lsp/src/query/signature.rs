@@ -17,7 +17,7 @@ impl Selection<'_> {
             return Ok(None);
         };
         let name = &self.source.text()[call.callee.clone()];
-        let mut signatures = match &call.target {
+        let (mut signatures, names) = match &call.target {
             tola_typst_syntax::syntax::CallTarget::Function => {
                 let Some(callee) = tola_typst_syntax::syntax::node_at_range(prepared, &call.callee)
                 else {
@@ -37,10 +37,21 @@ impl Selection<'_> {
             return Ok(None);
         }
         // The parameter the call stands in belongs to the signature the editor highlights, which
-        // is where the client reads it.
+        // is where the client reads it: an argument that writes a name marks the parameter it
+        // names, and one written without a name marks its own position among the declared
+        // parameters.
+        let written = call
+            .argument_name
+            .as_ref()
+            .and_then(|written| {
+                names
+                    .iter()
+                    .position(|declared| declared.as_str() == &self.source.text()[written.clone()])
+            })
+            .unwrap_or(call.active_argument);
         let parameter_count = signatures[0].parameters.as_ref().map_or(0, Vec::len);
         signatures[0].active_parameter = (parameter_count > 0)
-            .then(|| u32::try_from(call.active_argument.min(parameter_count - 1)))
+            .then(|| u32::try_from(written.min(parameter_count - 1)))
             .transpose()
             .context("active parameter exceeds LSP index range")?;
         Ok(Some(SignatureHelp {
@@ -122,6 +133,22 @@ mod tests {
             .signature("#strong(delta: 300, |\"\")\n")
             .expect("a signature");
         assert_eq!(signature.signatures[0].active_parameter, Some(1));
+    }
+
+    /// A named argument marks the parameter it names, not the position it was written at.
+    #[test]
+    fn named_argument_marks_its_own_parameter() {
+        let mut site = QuerySession::new();
+        let signature = site
+            .signature("#let size(body, width: 0pt, height: 0pt) = body\n#size(|width: 1pt)\n")
+            .expect("a signature");
+        let help = &signature.signatures[0];
+        let parameters = help.parameters.as_ref().expect("parameters");
+        let marked = help.active_parameter.expect("a marked parameter");
+        assert_eq!(
+            parameters[marked as usize].label,
+            ParameterLabel::Simple("width:".to_owned())
+        );
     }
 
     /// A call's signature help reads as the shared model renders it: one line naming each

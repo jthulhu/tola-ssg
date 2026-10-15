@@ -537,11 +537,13 @@ impl<'a> Semantic<'a> {
             .collect())
     }
 
+    /// The signatures one callee reflects, with the parameter names of the first of them in the
+    /// order it lists them.
     pub(super) fn signatures(
         &mut self,
         callee: &LinkedNode<'_>,
         name: &str,
-    ) -> Result<Vec<SignatureInformation>> {
+    ) -> Result<(Vec<SignatureInformation>, Vec<String>)> {
         let functions = self.callee_functions(callee)?;
         let definition = if functions
             .iter()
@@ -559,7 +561,7 @@ impl<'a> Semantic<'a> {
         receiver: &LinkedNode<'_>,
         field: &str,
         name: &str,
-    ) -> Result<Vec<SignatureInformation>> {
+    ) -> Result<(Vec<SignatureInformation>, Vec<String>)> {
         let functions = self.field_functions(receiver, field)?;
         Ok(self.reflect_signatures(functions, name, None))
     }
@@ -569,17 +571,22 @@ impl<'a> Semantic<'a> {
         functions: impl IntoIterator<Item = (Value, bool)>,
         name: &str,
         definition: Option<Span>,
-    ) -> Vec<SignatureInformation> {
+    ) -> (Vec<SignatureInformation>, Vec<String>) {
         let mut signatures = Vec::new();
+        let mut names = Vec::new();
         for (value, method) in functions {
             let Value::Func(func) = value else { continue };
             let docs = self.function_documentation(&func, definition);
-            let signature = signature_information(&func, name, method, docs.as_deref());
+            let (signature, parameters) =
+                signature_information(&func, name, method, docs.as_deref());
             if !signatures.contains(&signature) {
+                if signatures.is_empty() {
+                    names = parameters;
+                }
                 signatures.push(signature);
             }
         }
-        signatures
+        (signatures, names)
     }
 
     /// Merge distinct field values observed in every realized document context.
@@ -987,14 +994,15 @@ pub(super) fn signature(
     signature
 }
 
-/// One function as the editor's signature help shows it: the shared signature on one line, and
-/// every parameter labelled by its name alone, which is what the client highlights inside it.
+/// One function as the editor's signature help shows it: the shared signature on one line, every
+/// parameter labelled by its name alone, which is what the client highlights inside it, and the
+/// names in the order the signature lists them.
 fn signature_information(
     func: &Func,
     name: &str,
     method: bool,
     docs: Option<&str>,
-) -> SignatureInformation {
+) -> (SignatureInformation, Vec<String>) {
     let documented = docs.map(tola_typst_syntax::docs::Documentation::parse);
     let mut signature = signature(name, func, documented.as_ref(), &BTreeMap::new());
     // A method call writes its receiver outside the argument list, so the receiver's parameter is
@@ -1018,12 +1026,18 @@ fn signature_information(
             documentation: parameter.docs.as_deref().map(super::markdown_documentation),
         })
         .collect::<Vec<_>>();
-    SignatureInformation {
-        label,
-        parameters: Some(parameters),
-        documentation: docs.map(super::markdown_documentation),
-        active_parameter: None,
-    }
+    (
+        SignatureInformation {
+            label,
+            parameters: Some(parameters),
+            documentation: docs.map(super::markdown_documentation),
+            active_parameter: None,
+        },
+        ordered
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
+    )
 }
 
 /// One function's signature on one line: `name(parameter: type, …) -> return`, the shape Tinymist

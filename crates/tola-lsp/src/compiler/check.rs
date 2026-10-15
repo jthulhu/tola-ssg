@@ -175,9 +175,9 @@ fn open_document_names(
 /// Append the hints and liveness findings one open document's own index justifies, in source
 /// order.
 ///
-/// Hints are measured against the diagnostics reported before this call, so only a diagnostic that
-/// already covers a hint's range drops it. Liveness is source-local: it needs no compiled world,
-/// only the selection evidence frozen with this check's sources.
+/// Hints are measured against the diagnostics reported before this call, so a diagnostic that
+/// already covers a hint's range and advises on it drops that hint. Liveness is source-local: it
+/// needs no compiled world, only the selection evidence frozen with this check's sources.
 fn append_document_editor_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     path: &Path,

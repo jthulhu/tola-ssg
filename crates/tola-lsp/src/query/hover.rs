@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 use std::ops::Range;
-use std::sync::Arc;
 
 use anyhow::Result;
 use lsp_types::Hover;
@@ -341,7 +340,7 @@ impl Selection<'_> {
         node: &LinkedNode<'_>,
         semantics: &mut Semantic<'_>,
     ) -> Result<Option<Hover>> {
-        let names = Arc::new(tola_typst_syntax::names::SourceNames::new(prepared.clone()));
+        let names = self.names_of(prepared);
         let declaration = names
             .declared_at(self.cursor)
             .map(|id| &names.declarations()[id]);
@@ -729,7 +728,7 @@ impl Selection<'_> {
         prepared: &Source,
         semantics: &mut Semantic<'_>,
     ) -> Result<Option<Hover>> {
-        let Some(call) = meta_call(self.source, self.cursor) else {
+        let Some(call) = meta_call(self.source, self.cursor, &self.names_of(self.source)) else {
             return Ok(None);
         };
         if call.callee.start <= self.cursor && self.cursor <= call.callee.end {
@@ -790,7 +789,7 @@ impl Selection<'_> {
         semantics: &mut Semantic<'_>,
         call: &MetaCall,
     ) -> Result<Option<Hover>> {
-        let names = tola_typst_syntax::names::SourceNames::new(self.source.clone());
+        let names = self.names_of(self.source);
         let Some(callee) = tola_typst_syntax::syntax::node_at_range(self.source, &call.callee)
         else {
             return Ok(None);
@@ -941,7 +940,7 @@ impl Selection<'_> {
         // Only a name that reads a value answers by spelling: a declaration, import item, argument
         // label, dict key, or field name reads nothing here, and a name the file itself binds is
         // that binding's, not the standard library's.
-        let names = tola_typst_syntax::names::SourceNames::new(prepared.clone());
+        let names = self.names_of(prepared);
         let signature = names
             .reads_value_at(cursor)
             .then_some(name)
@@ -1209,7 +1208,7 @@ mod tests {
                 "position": range.start,
             }),
         );
-        let reply = Selection::new(&source, at, &query, CheckProgress::Failed)
+        let reply = Selection::new(&source, at, &query, CheckProgress::Failed, None)
             .source_only_reply(site.config.as_ref(), &query)
             .expect("an answer")
             .expect("a hover reply");

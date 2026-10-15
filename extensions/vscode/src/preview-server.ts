@@ -1,13 +1,21 @@
 import { type ChildProcess, spawn } from 'node:child_process'
+import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
 import * as vscode from 'vscode'
 
 import type { Selection } from './selection.ts'
 
-const SERVING_LINE = /^Serving (http:\/\/\S+)/m
+/**
+ * The address file `tola dev` publishes for a site, and the shape it writes.
+ *
+ * The server owns both (`tola-build`'s `filesystem::dev_server`); the path is relative to the
+ * site's own root, which is the directory holding the configuration.
+ */
+const ADDRESS_FILE = '.tola/dev-server.json'
+const ADDRESS_VERSION = 1
 
-/** The escapes a coloured child writes around its own words, which the address pattern cannot match. */
-// deno-lint-ignore no-control-regex -- the escape character is what this pattern matches
-const ESCAPES = /\x1b\[[0-9;?]*[A-Za-z]/g
+/** How often the published address is read while the server starts. */
+const ADDRESS_POLL_MS = 150
 
 /** Silence this long means the server is not coming back, so the wait fails instead of hanging. */
 const STARTUP_DEADLINE_MS = 300_000
@@ -33,6 +41,7 @@ export class PreviewServer {
   private closed = false
   private rejectStartup!: (error: Error) => void
   private startupTimer: NodeJS.Timeout | undefined
+  private addressTimer: NodeJS.Timeout | undefined
   private killTimer: NodeJS.Timeout | undefined
   private publishing = 0
 
@@ -53,34 +62,40 @@ export class PreviewServer {
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     output.appendLine(`Tola starts the development server for ${selection.configurationFile}`)
-    let log = ''
+    const report = (chunk: Buffer) => {
+      output.append(chunk.toString())
+      changed()
+    }
+    this.child.stdout?.on('data', report)
+    this.child.stderr?.on('data', report)
+    const published = path.join(path.dirname(selection.config.fsPath), ADDRESS_FILE)
+    const startedAt = Date.now()
     this.ready = new Promise<URL>((resolve, reject) => {
       this.rejectStartup = reject
-      // A server that never announces leaves nothing to open, so the author is told and the child
+      // A server that never publishes leaves nothing to open, so the author is told and the child
       // is ended here: the next Start Preview then starts a server rather than reusing this one.
       this.startupTimer = setTimeout(() => {
         reject(
           new Error(
-            'Tola did not hear the development server announce its address; open Tola output, close any other `tola dev` for this site, and run Start Preview again',
+            'Tola did not hear the development server publish its address; open Tola output, close any other `tola dev` for this site, and run Start Preview again',
           ),
         )
         this.stop()
       }, STARTUP_DEADLINE_MS)
       this.startupTimer.unref()
-      const collect = (chunk: Buffer) => {
-        const text = chunk.toString()
-        output.append(text)
-        log = (log + text.replace(ESCAPES, '')).slice(-8192)
-        const serving = SERVING_LINE.exec(log)?.[1]
-        if (serving && !this.stopped && !this.address) {
-          this.address = new URL(serving)
+      const poll = async () => {
+        if (this.stopped || this.address) return
+        const address = await this.publishedAddress(published, startedAt)
+        if (address) {
           clearTimeout(this.startupTimer)
-          resolve(this.address)
+          this.address = address
+          resolve(address)
+          return
         }
-        changed()
+        this.addressTimer = setTimeout(() => void poll(), ADDRESS_POLL_MS)
+        this.addressTimer.unref()
       }
-      this.child.stdout?.on('data', collect)
-      this.child.stderr?.on('data', collect)
+      void poll()
       this.child.once(
         'error',
         (error) => {
@@ -119,6 +134,28 @@ export class PreviewServer {
 
   get running(): boolean {
     return !this.stopped && this.address !== undefined
+  }
+
+  /**
+   * The address this child published, while it is the one that wrote the file.
+   *
+   * A file that is absent, written before this server started, unreadable, or of another shape
+   * names no address: the next poll reads it again rather than failing the start.
+   */
+  private async publishedAddress(published: string, startedAt: number): Promise<URL | undefined> {
+    try {
+      const written = await fs.stat(published)
+      if (written.mtimeMs < startedAt - 1000) return undefined
+      const state: unknown = JSON.parse(await fs.readFile(published, 'utf8'))
+      if (typeof state !== 'object' || state === null || !('version' in state) || !('origin' in state)) {
+        return undefined
+      }
+      const { version, origin } = state
+      if (version !== ADDRESS_VERSION || typeof origin !== 'string') return undefined
+      return new URL(origin)
+    } catch {
+      return undefined
+    }
   }
 
   readPublication(source?: vscode.Uri, revision?: string): Promise<Publication> {
@@ -181,6 +218,7 @@ export class PreviewServer {
     if (this.stopped) return
     this.stopped = true
     this.cancellation.abort()
+    clearTimeout(this.addressTimer)
     clearTimeout(this.startupTimer)
     this.rejectStartup(new vscode.CancellationError())
     this.lifetime.dispose()

@@ -10,7 +10,7 @@ use lsp_server::{ErrorCode, Notification, RequestId, Response};
 use lsp_types::notification::{self, Notification as LspNotification};
 use lsp_types::request::{self, Request as LspRequest};
 use lsp_types::{
-    ConfigurationItem, ConfigurationParams, InitializeParams, WorkDoneProgress,
+    ConfigurationItem, ConfigurationParams, InitializeParams, MessageType, WorkDoneProgress,
     WorkDoneProgressBegin,
 };
 use tola_build::diagnostic::Diagnostic;
@@ -169,7 +169,10 @@ impl<W: Write, D: Fn(&[Diagnostic])> Connection<W, D> {
             Ok(parameters) => parameters,
             Err(_) => return self.log_invalid_notification(InvalidNotification::Configuration),
         };
-        let settings = Settings::read(&parameters.settings);
+        let (settings, unread) = Settings::read(&parameters.settings);
+        for message in unread {
+            self.show_message(MessageType::WARNING, message.to_owned())?;
+        }
         if !settings.is_empty() {
             self.settings_pull = None;
             self.apply_settings(settings);
@@ -250,7 +253,8 @@ impl<W: Write, D: Fn(&[Diagnostic])> Connection<W, D> {
             if let Ok(sections) = response.response_result
                 && let Some(section) = sections.as_array().and_then(|sections| sections.first())
             {
-                self.apply_settings(Settings::read(section));
+                let (settings, _unread) = Settings::read(section);
+                self.apply_settings(settings);
             }
         }
         Ok(())
@@ -436,5 +440,34 @@ mod tests {
             .unwrap();
         let workspace = connection.workspace();
         assert_eq!(workspace.formatter.print_width, 93);
+    }
+
+    /// A formatter setting whose value the reader cannot use is stated, not silently ignored.
+    #[test]
+    fn unreadable_setting_is_stated() {
+        let mut connection = ready(Vec::new());
+        ready_workspace(&mut connection);
+        let _ = connection
+            .notification(Notification::new(
+                notification::DidChangeConfiguration::METHOD.into(),
+                json!({"settings": {"formatter": {"printWidth": "wide", "proseWrap": true}}}),
+            ))
+            .unwrap();
+        let shown = messages(&mut connection)
+            .into_iter()
+            .filter_map(|message| match message {
+                Message::Notification(notification)
+                    if notification.method == notification::ShowMessage::METHOD =>
+                {
+                    let params: lsp_types::ShowMessageParams =
+                        serde_json::from_value(notification.params).unwrap();
+                    Some(params.message)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(shown.len(), 1, "{shown:?}");
+        assert!(shown[0].contains("tola.formatterPrintWidth"), "{shown:?}");
+        assert!(connection.workspace().formatter.prose_wrap);
     }
 }

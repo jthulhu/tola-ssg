@@ -5,7 +5,8 @@
 //! explicit `return` discards, a `set` or `show` statement no content in its block can affect, a
 //! math spelling no scope defines, and a font family this environment does not include. A hint is
 //! editor feedback only, never a build's diagnostic, and one whose range the compiler already
-//! reported is dropped, so an evaluated mistake is stated once.
+//! reported with advice of its own is dropped, so an evaluated mistake is stated once while a
+//! suggestion the report does not carry still reaches the author.
 
 use std::path::Path;
 
@@ -25,7 +26,7 @@ mod fonts;
 mod imports;
 mod math;
 
-/// The hints one open document's index justifies, minus what the check already reported.
+/// The hints one open document's index justifies, minus the ones the compiler already advised on.
 pub(super) fn document_diagnostics(
     path: &Path,
     root: &Path,
@@ -49,7 +50,9 @@ pub(super) fn document_diagnostics(
         .filter_map(|hint| {
             let diagnostic = diagnostic(hint, names.source(), &relative)?;
             let range = diagnostic.location.as_ref()?.range?;
-            (!reported_here(reported, &relative, &range)).then_some(diagnostic)
+            let advised = covering(reported, &relative, &range)
+                .is_some_and(|report| !report.help.is_empty() || !report.notes.is_empty());
+            (!advised).then_some(diagnostic)
         })
         .collect()
 }
@@ -170,9 +173,13 @@ fn diagnostic(hint: Hint, source: &Source, path: &str) -> Option<Diagnostic> {
     Some(diagnostic)
 }
 
-/// Whether the check already reported a diagnostic overlapping this range in this file.
-fn reported_here(reported: &[Diagnostic], path: &str, range: &SourceRange) -> bool {
-    reported.iter().any(|diagnostic| {
+/// The reported diagnostic covering this range in this file, when one does.
+fn covering<'a>(
+    reported: &'a [Diagnostic],
+    path: &str,
+    range: &SourceRange,
+) -> Option<&'a Diagnostic> {
+    reported.iter().find(|diagnostic| {
         diagnostic.location.as_ref().is_some_and(|location| {
             location.path == path
                 && location
@@ -214,21 +221,17 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn reported_range_drops_its_hint() {
+    fn covering_report_is_found() {
         let names = SourceNames::new(Source::detached("#break\n".to_owned()));
         let hint = hints(&names, None).remove(0);
         let reported = diagnostic(hint, names.source(), "content/page.typ").unwrap();
         let range = reported.location.as_ref().unwrap().range.unwrap();
-        assert!(reported_here(
-            std::slice::from_ref(&reported),
-            "content/page.typ",
-            &range
-        ));
-        assert!(!reported_here(&[reported], "content/other.typ", &range));
+        assert!(covering(std::slice::from_ref(&reported), "content/page.typ", &range).is_some());
+        assert!(covering(&[reported], "content/other.typ", &range).is_none());
     }
 
     #[test]
-    fn adjacent_reported_range_keeps_its_hint() {
+    fn adjacent_report_is_not_covering() {
         let at = |line, character| SourcePosition { line, character };
         let hint = SourceRange {
             start: at(0, 1),
@@ -244,7 +247,26 @@ pub(crate) mod tests {
             start: at(0, 0),
             end: at(0, 1),
         });
-        assert!(!reported_here(&[before], "content/page.typ", &hint));
+        assert!(covering(&[before], "content/page.typ", &hint).is_none());
+    }
+
+    #[test]
+    fn plain_report_keeps_advice() {
+        let names = SourceNames::new(Source::detached("#break\n".to_owned()));
+        let hint = hints(&names, None).remove(0);
+        let advised = diagnostic(hint, names.source(), "content/page.typ").unwrap();
+        let mut plain = advised.clone();
+        plain.help.clear();
+        plain.notes.clear();
+        let root = Path::new("/site");
+        let path = Path::new("/site/content/page.typ");
+
+        let kept = document_diagnostics(path, root, &names, None, &[plain]);
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert!(
+            document_diagnostics(path, root, &names, None, &[advised]).is_empty(),
+            "a report that already advises leaves nothing to add"
+        );
     }
 
     #[test]
