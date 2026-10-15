@@ -14,6 +14,7 @@ use crate::config::{ConfigLoader, DevConfig, ServerConfig};
 use tola_build::build::{BuildRequest, BuildSession};
 use tola_build::cancellation::{BuildCancellation, BuildCanceller};
 use tola_build::config::ResolvedSiteConfig;
+use tola_build::filesystem::DevServerAddress;
 
 const DEFAULT_WS_PORT: u16 = 35729;
 
@@ -28,6 +29,14 @@ impl ServerPurpose {
         match self {
             Self::Development(_) => tola_build::build::BuildMode::Development,
             Self::Preview => tola_build::build::BuildMode::Production,
+        }
+    }
+
+    /// The command that started this server, as the site author typed it.
+    fn command(&self) -> &'static str {
+        match self {
+            Self::Development(_) => "tola dev",
+            Self::Preview => "tola preview",
         }
     }
 }
@@ -108,6 +117,7 @@ fn run_server(
         ServerPurpose::Development(_) => "Building site…",
         ServerPurpose::Preview => "Building preview…",
     })?;
+    let command = purpose.command();
     // Response assembly is this runtime's only CPU work: one worker per core up to four keeps a
     // busy host parallel without multiplying the per-connection buffers a large machine would pay for.
     let workers = std::thread::available_parallelism().map_or(2, |cores| cores.get().clamp(1, 4));
@@ -115,7 +125,9 @@ fn run_server(
         .worker_threads(workers)
         .enable_all()
         .build()
-        .context("Tola could not start its development runtime; restart `tola dev`")?;
+        .with_context(|| {
+            format!("Tola could not start its serving runtime; restart `{command}`")
+        })?;
     let (listener, address, port_fallback) =
         super::http::bind_with_port_fallback(server.interface, server.port)?;
     let network_exposure = network_exposure_diagnostic(server.interface);
@@ -230,6 +242,9 @@ fn run_server(
                 } else {
                     format!("http://{address}{}", mount.base_path())
                 };
+                let _written = DevServerAddress::write(config.get_root(), &url).with_context(|| {
+                    format!("Tola could not write the address it serves; restart `{command}`")
+                })?;
                 output.serving(&url)?;
                 match (
                     rebuild.is_some(),

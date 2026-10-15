@@ -560,7 +560,7 @@ mod tests {
         let site = SiteDirectory::new();
         site.write(
             "tola.toml",
-            "[build]\nentry = \"site.typ\"\ncontent-dir = \"content\"\n\n[build.minfy]\nunknown = 1\n",
+            "[build]\nentry = \"site.typ\"\ncontent-dir = \"content\"\nminfy = true\n",
         );
         let mut client = EditorSession::start(&site);
         let text = std::fs::read_to_string(site.path("tola.toml")).expect("the configuration file");
@@ -578,10 +578,10 @@ mod tests {
                 "kind": "unknown-configuration-fields",
                 "fields": [{
                     "name": "build.minfy",
-                    "line": 5,
+                    "line": 4,
                     "written": {
-                        "start": { "line": 4, "character": 7 },
-                        "end": { "line": 4, "character": 12 },
+                        "start": { "line": 3, "character": 0 },
+                        "end": { "line": 3, "character": 5 },
                     },
                 }],
             }))
@@ -620,7 +620,7 @@ mod tests {
         let site = SiteDirectory::new();
         site.write(
             "tola.toml",
-            "[build]\nentry = \"site.typ\"\ncontent-dir = \"content\"\n\n[build.minfy]\nunknown = 1\n\n[build.cach]\nunknown = 2\n",
+            "[build]\nentry = \"site.typ\"\ncontent-dir = \"content\"\nminfy = true\ncach = \"x\"\n",
         );
         let mut client = EditorSession::start(&site);
         let text = std::fs::read_to_string(site.path("tola.toml")).expect("the configuration file");

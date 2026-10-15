@@ -90,7 +90,8 @@ The site answers hover, definition, references, rename, and highlights for label
 call hierarchy (a source is the callable; pages and the files whose `include` or `import` writes its
 path are its callers), workspace symbols (including sources the editor has not opened, labels, and
 routes), code lenses (one per realized page — the first three named, the rest behind one chooser
-lens — read as inlay hints by clients that show no lens), `tola/route` and `tola/routes`, completion
+lens — read as inlay hints by clients that show no lens, and opening the address the running
+`tola dev` wrote), `tola/route` and `tola/routes`, completion
 (package versions and directories, the `@preview` index, `tola.toml` keys, labels, dictionary
 fields, named parameters), code actions (near-miss replacements, unused imports, organize imports,
 wrapping a selection in a content block, an equation in its other form, or an element in a figure,

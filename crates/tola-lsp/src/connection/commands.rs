@@ -72,31 +72,30 @@ impl<W: Write, D: Fn(&[Diagnostic])> Connection<W, D> {
     /// Where this site is served, as `http://host:port`.
     ///
     /// A client that named an origin outranks a command line, which outranks the address the site's
-    /// own generated state holds: an author states a location once, and the running development
-    /// server is the only source that knows a port it had to fall back to.
+    /// own state holds: an author states a location once, and the running server is the only source
+    /// that knows a port it had to fall back to.
     pub(super) fn preview_origin(&self) -> Option<String> {
         self.named_origin
             .clone()
             .or_else(|| self.default_origin.clone())
-            .or_else(|| self.development_origin())
+            .or_else(|| self.dev_server_address())
     }
 
-    /// The origin the site's own development-server state names, when a server is running.
+    /// The address the site's own `tola dev` wrote, when one is serving.
     ///
-    /// The state is `tola dev`'s, written while it serves and removed when it stops; a file that is
-    /// absent, unreadable, or written by another shape names no server rather than an error.
-    fn development_origin(&self) -> Option<String> {
+    /// The address names the site's own root, which a configuration may place outside the folder
+    /// the client named.
+    fn dev_server_address(&self) -> Option<String> {
         let Phase::Ready(workspace) = &self.phase else {
             return None;
         };
-        let path = workspace
-            .root
-            .join(tola_build::filesystem::DEV_SERVER_STATE_FILE);
-        let state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
-        let written = state.get("version")?.as_u64()?;
-        (written == u64::from(tola_build::filesystem::DEV_SERVER_STATE_VERSION))
-            .then(|| state.get("origin")?.as_str().map(str::to_owned))?
+        let root = self
+            .configuration
+            .as_ref()
+            .map_or(workspace.root.as_path(), |configuration| {
+                configuration.get_root()
+            });
+        tola_build::filesystem::DevServerAddress::read(root)
     }
 
     /// Ask the client to open one address, which only a client that declared it can do.
@@ -123,41 +122,51 @@ impl<W: Write, D: Fn(&[Diagnostic])> Connection<W, D> {
 #[cfg(test)]
 mod tests {
     use crate::connection::tests::ready_at;
-    use serde_json::json;
     use std::sync::Arc;
 
-    /// A running development server is the only source that knows the port it fell back to, so its
-    /// own state names where the site is served; a file of another shape names no server at all.
+    /// A running server is the only source that knows the port it fell back to, so the address it
+    /// wrote names where the site is served.
     #[test]
-    fn dev_server_state_names_origin_or_none() {
+    fn dev_server_address_names_where_the_site_is_served() {
         let directory = tempfile::tempdir().unwrap();
-        let state = directory
-            .path()
-            .join(tola_build::filesystem::DEV_SERVER_STATE_FILE);
-        std::fs::create_dir_all(state.parent().unwrap()).unwrap();
         let connection = ready_at(Vec::new(), directory.path().to_path_buf());
         assert_eq!(connection.preview_origin(), None);
-        std::fs::write(
-            &state,
-            json!({
-                "version": tola_build::filesystem::DEV_SERVER_STATE_VERSION,
-                "origin": "http://localhost:4321",
-            })
-            .to_string(),
+        let written = tola_build::filesystem::DevServerAddress::write(
+            directory.path(),
+            "http://localhost:4321",
         )
         .unwrap();
         assert_eq!(
             connection.preview_origin().as_deref(),
             Some("http://localhost:4321")
         );
-        std::fs::write(
-            &state,
-            json!({"version": 99, "origin": "http://localhost:1"}).to_string(),
+        drop(written);
+    }
+
+    #[test]
+    fn dev_server_address_follows_the_site_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let site = directory.path().join("site");
+        std::fs::create_dir_all(site.join("content")).unwrap();
+        let path = site.join("tola.toml");
+        std::fs::write(&path, "").unwrap();
+        let config = tola_build::config::loading::load_site_config(
+            Some(&path),
+            tola_typst::PackageLocations::default(),
+            &tola_build::config::loading::BuildOverrides::default(),
         )
-        .unwrap();
-        assert_eq!(connection.preview_origin(), None);
-        std::fs::write(&state, "not json").unwrap();
-        assert_eq!(connection.preview_origin(), None);
+        .unwrap()
+        .into_config();
+        let mut connection = ready_at(Vec::new(), directory.path().to_path_buf());
+        connection.configuration = Some(Arc::new(config));
+
+        let _written =
+            tola_build::filesystem::DevServerAddress::write(&site, "http://localhost:4321")
+                .unwrap();
+        assert_eq!(
+            connection.preview_origin().as_deref(),
+            Some("http://localhost:4321")
+        );
     }
 
     #[test]

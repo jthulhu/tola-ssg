@@ -253,14 +253,9 @@ mod tests {
             "site.typ",
             "#document(\"document/index.html\")[#include \"content/document.typ\"]\n",
         );
-        site.write(
-            tola_build::filesystem::DEV_SERVER_STATE_FILE,
-            &serde_json::json!({
-                "version": tola_build::filesystem::DEV_SERVER_STATE_VERSION,
-                "origin": "http://localhost:4321",
-            })
-            .to_string(),
-        );
+        let _written =
+            tola_build::filesystem::DevServerAddress::write(site.root(), "http://localhost:4321")
+                .unwrap();
         let mut client = EditorSession::start(&site);
         client.open("content/document.typ", "Body.\n");
 

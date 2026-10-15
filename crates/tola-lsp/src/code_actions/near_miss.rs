@@ -69,8 +69,9 @@ pub(super) fn configuration_fixes(
             ));
         }
         if field.line.is_some()
-            && let Some(range) = protocol_line(text, bytes.start)
-                .and_then(|line| crate::position::utf16_range(source.lines(), line))
+            && let Some(line) = protocol_line(text, bytes.start)
+            && !writes_a_table_header(&text[line.clone()])
+            && let Some(range) = crate::position::utf16_range(source.lines(), line)
         {
             fixes.push((
                 format!("remove `{}`", field.name),
@@ -195,6 +196,12 @@ fn config_line_start(text: &str, line: usize) -> Option<usize> {
     (start <= text.len()).then_some(start)
 }
 
+/// Whether the line a key was reported on writes a table header, whose removal would leave every
+/// key below it in whichever table precedes it.
+fn writes_a_table_header(line: &str) -> bool {
+    line.trim_start().starts_with('[')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_field_removes_its_written_line() {
+    fn table_header_offers_no_removal() {
         let text = "version = \"0.8.0\"\n\n[build]\nentry = \"site.typ\"\n\n[build.invalid-section]\nunknown = 1\n";
         let actions = actions(
             text,
@@ -246,14 +253,8 @@ mod tests {
                 "fields": [field("build.invalid-section", Some(6))],
             }),
         );
-        assert_eq!(
-            edits(&actions),
-            [(
-                "remove `build.invalid-section`".to_owned(),
-                Range::new(Position::new(5, 0), Position::new(6, 0)),
-                String::new(),
-            )]
-        );
+        // Removing that line alone would leave `unknown` in whichever table precedes it.
+        assert!(actions.is_empty(), "{actions:?}");
     }
 
     #[test]

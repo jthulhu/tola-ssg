@@ -1,7 +1,7 @@
 //! The calls that wrap a value the author has already written.
 //!
-//! A wrap rewrites the value the dot stands on rather than the name after it, so the author keeps
-//! what they wrote: `#body.al` becomes `#align(center, body)`. Every wrap is a Typst call, so each
+//! A wrap replaces the whole field access, so the author keeps what they wrote and no written name
+//! is left dangling: `#body.al` becomes `#align(center, body)`. Every wrap is a Typst call, so each
 //! one is valid wherever an expression is.
 
 use std::ops::Range as ByteRange;
@@ -79,11 +79,11 @@ const WRAPS: &[Call] = &[
 
 /// The wraps the value under the cursor accepts.
 pub fn wraps(source: &Source, at: usize) -> Vec<Wrap> {
-    let Some((receiver, written)) = field(source, at) else {
+    let Some(access) = field(source, at) else {
         return Vec::new();
     };
-    let value = &source.text()[receiver.clone()];
-    let written = &source.text()[written];
+    let value = &source.text()[access.value.clone()];
+    let written = &source.text()[access.written];
     WRAPS
         .iter()
         .filter(|call| call.name.starts_with(written))
@@ -91,7 +91,7 @@ pub fn wraps(source: &Source, at: usize) -> Vec<Wrap> {
             name: call.name,
             documentation: call.documentation,
             edit: Edit {
-                range: receiver.clone(),
+                range: access.range.clone(),
                 text: format!("{}{value}{}", call.before, call.after),
                 insertion: Some(call.before.len()),
             },
@@ -99,13 +99,19 @@ pub fn wraps(source: &Source, at: usize) -> Vec<Wrap> {
         .collect()
 }
 
-/// The receiver and the written name of the field access the cursor is inside.
-fn field(source: &Source, at: usize) -> Option<(ByteRange<usize>, ByteRange<usize>)> {
+/// The field access the cursor is inside: the value it stands on, the name written after the dot,
+/// and the access a wrap replaces.
+struct FieldAccess {
+    value: ByteRange<usize>,
+    written: ByteRange<usize>,
+    range: ByteRange<usize>,
+}
+
+fn field(source: &Source, at: usize) -> Option<FieldAccess> {
     let node = LinkedNode::new(source.root()).leaf_at(at, Side::Before)?;
     if node.kind() != SyntaxKind::Ident {
         return None;
     }
-    // The name after the dot is the one whose value the wraps replace; the target is the value.
     if node
         .prev_leaf()
         .is_none_or(|previous| previous.kind() != SyntaxKind::Dot)
@@ -116,8 +122,11 @@ fn field(source: &Source, at: usize) -> Option<(ByteRange<usize>, ByteRange<usiz
     if access.kind() != SyntaxKind::FieldAccess {
         return None;
     }
-    let target = access.children().next()?;
-    Some((target.range(), node.range()))
+    Some(FieldAccess {
+        value: access.children().next()?.range(),
+        written: node.range(),
+        range: access.range(),
+    })
 }
 
 #[cfg(test)]
@@ -133,15 +142,27 @@ mod tests {
             .find(|wrap| wrap.name == name)
     }
 
+    /// The text an author is left with after accepting one wrap.
+    fn accepted_text(text: &str, edit: &Edit) -> String {
+        let mut accepted = text.to_owned();
+        accepted.replace_range(edit.range.clone(), &edit.text);
+        accepted
+    }
+
     #[test]
-    fn wrap_replaces_the_value_it_wraps() {
+    fn wrap_replaces_the_field_access() {
         let align = wrap("#body.al|", "align").expect("the align wrap");
-        assert_eq!(align.edit.text, "align(center, body)");
-        assert_eq!(&"#body.al"[align.edit.range.clone()], "body");
+        assert_eq!(
+            accepted_text("#body.al", &align.edit),
+            "#align(center, body)"
+        );
         assert_eq!(align.edit.insertion, Some("align(center, ".len()));
 
         let figure = wrap("#figure.fig|", "figure").expect("the figure wrap");
-        assert_eq!(figure.edit.text, "figure(figure)");
+        assert_eq!(
+            accepted_text("#figure.fig", &figure.edit),
+            "#figure(figure)"
+        );
     }
 
     #[test]

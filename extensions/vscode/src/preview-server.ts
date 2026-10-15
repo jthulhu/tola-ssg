@@ -5,6 +5,13 @@ import type { Selection } from './selection.ts'
 
 const SERVING_LINE = /^Serving (http:\/\/\S+)/m
 
+/** The escapes a coloured child writes around its own words, which the address pattern cannot match. */
+// deno-lint-ignore no-control-regex -- the escape character is what this pattern matches
+const ESCAPES = /\x1b\[[0-9;?]*[A-Za-z]/g
+
+/** Silence this long means the server is not coming back, so the wait fails instead of hanging. */
+const STARTUP_DEADLINE_MS = 300_000
+
 export interface PublishedRoute {
   readonly output: string
   readonly route: string
@@ -25,6 +32,7 @@ export class PreviewServer {
   private stopped = false
   private closed = false
   private rejectStartup!: (error: Error) => void
+  private startupTimer: NodeJS.Timeout | undefined
   private killTimer: NodeJS.Timeout | undefined
   private publishing = 0
 
@@ -48,13 +56,25 @@ export class PreviewServer {
     let log = ''
     this.ready = new Promise<URL>((resolve, reject) => {
       this.rejectStartup = reject
+      // A server that never announces leaves nothing to open, so the author is told and the child
+      // is ended here: the next Start Preview then starts a server rather than reusing this one.
+      this.startupTimer = setTimeout(() => {
+        reject(
+          new Error(
+            'Tola did not hear the development server announce its address; open Tola output, close any other `tola dev` for this site, and run Start Preview again',
+          ),
+        )
+        this.stop()
+      }, STARTUP_DEADLINE_MS)
+      this.startupTimer.unref()
       const collect = (chunk: Buffer) => {
         const text = chunk.toString()
         output.append(text)
-        log = (log + text).slice(-8192)
+        log = (log + text.replace(ESCAPES, '')).slice(-8192)
         const serving = SERVING_LINE.exec(log)?.[1]
         if (serving && !this.stopped && !this.address) {
           this.address = new URL(serving)
+          clearTimeout(this.startupTimer)
           resolve(this.address)
         }
         changed()
@@ -80,7 +100,7 @@ export class PreviewServer {
         this.stopped = true
         this.cancellation.abort()
         this.lifetime.dispose()
-        clearTimeout(this.killTimer)
+        clearTimeout(this.startupTimer)
         this.rejectStartup(
           new Error(
             'Tola development server stopped before serving. Open Tola output for details and run Start Preview again',
@@ -161,6 +181,7 @@ export class PreviewServer {
     if (this.stopped) return
     this.stopped = true
     this.cancellation.abort()
+    clearTimeout(this.startupTimer)
     this.rejectStartup(new vscode.CancellationError())
     this.lifetime.dispose()
     if (this.closed) return

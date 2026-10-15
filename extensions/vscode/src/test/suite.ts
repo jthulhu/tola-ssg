@@ -326,6 +326,49 @@ export async function run(): Promise<void> {
       }
     }))
 
+  await check('A dropped file inserts the publishing snippet', () =>
+    withSite(async (site) => {
+      const document = await vscode.workspace.openTextDocument(site.source)
+      await vscode.window.showTextDocument(document)
+      const bytes = new Uint8Array(await fs.readFile(site.plain.fsPath))
+      const transfer = new vscode.DataTransfer()
+      const transferred = new vscode.DataTransferItem('')
+      transferred.asFile = () => ({
+        id: 'dropped-file',
+        name: 'dropped.txt',
+        data: () => Promise.resolve(bytes),
+      })
+      transfer.set('files', transferred)
+      const provider = new Assets(
+        () => ({ root: site.root, directory: 'assets', current: () => true }),
+        (error) => {
+          throw error
+        },
+      )
+      const cancellation = new vscode.CancellationTokenSource()
+      try {
+        const [drop] = await provider.provideDocumentDropEdits(
+          document,
+          new vscode.Position(0, 0),
+          transfer,
+          cancellation.token,
+        ) ?? []
+        assert.ok(drop, 'The drop offered no edit')
+        const inserted = drop.insertText
+        assert.ok(inserted instanceof vscode.SnippetString, 'The inserted call is not a snippet')
+        assert.equal(
+          inserted.value,
+          '#asset("assets/dropped.txt", read("../assets/dropped.txt"))$0',
+        )
+        assert.ok(drop.additionalEdit, 'The drop copies no file')
+        await vscode.workspace.applyEdit(drop.additionalEdit)
+        const copied = await fs.stat(path.join(site.root, 'assets/dropped.txt'))
+        assert.ok(copied.isFile(), 'The dropped file was not copied into the site')
+      } finally {
+        cancellation.dispose()
+      }
+    }))
+
   await check('Folder tasks build their own site', () =>
     withSites(2, async ([first, second]) => {
       assert.ok(first && second)

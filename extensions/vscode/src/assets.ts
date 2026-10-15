@@ -18,7 +18,7 @@ interface Dropped {
 
 /** The copy and the call one dropped file becomes. */
 interface Prepared {
-  readonly text: string
+  readonly insertText: vscode.SnippetString
   readonly title: string
   readonly files: vscode.WorkspaceEdit
 }
@@ -62,7 +62,7 @@ export class Assets implements vscode.DocumentDropEditProvider, vscode.DocumentP
   ): Promise<vscode.DocumentDropEdit[] | undefined> {
     const prepared = await this.prepared(document, dataTransfer, token)
     if (!prepared) return undefined
-    const insertion = new vscode.DocumentDropEdit(prepared.text)
+    const insertion = new vscode.DocumentDropEdit(prepared.insertText)
     insertion.title = prepared.title
     insertion.additionalEdit = prepared.files
     return [insertion]
@@ -78,7 +78,7 @@ export class Assets implements vscode.DocumentDropEditProvider, vscode.DocumentP
     const prepared = await this.prepared(document, dataTransfer, token)
     if (!prepared) return undefined
     const insertion = new vscode.DocumentPasteEdit(
-      prepared.text,
+      prepared.insertText,
       prepared.title,
       vscode.DocumentDropOrPasteEditKind.Empty,
     )
@@ -111,7 +111,7 @@ export class Assets implements vscode.DocumentDropEditProvider, vscode.DocumentP
       const placed = await this.place(site, dropped, token)
       if (!placed || !current()) return undefined
       return {
-        text: this.inserted(document, placed),
+        insertText: this.asset_call(document, placed),
         title: `Add ${placed.name} to the site's assets`,
         files: placed.files,
       }
@@ -173,10 +173,10 @@ export class Assets implements vscode.DocumentDropEditProvider, vscode.DocumentP
     return undefined
   }
 
-  /** The call that publishes the copied file, the caret left where the author types next. */
-  private inserted(document: vscode.TextDocument, placed: Placed): string {
+  /** The caret is left where the author types next. */
+  private asset_call(document: vscode.TextDocument, placed: Placed): vscode.SnippetString {
     const writer = path.dirname(document.uri.fsPath)
     const read = path.relative(writer, placed.uri.fsPath).split(path.sep).join('/')
-    return `#asset("${placed.relative}", read("${read}"))$0`
+    return new vscode.SnippetString(`#asset("${placed.relative}", read("${read}"))$0`)
   }
 }

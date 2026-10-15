@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+mod dev_server;
 mod file_handle;
 mod identity;
 mod lock;
@@ -23,16 +24,17 @@ pub const INTERNAL_DIR: &str = ".tola";
 /// generated state.
 pub const PACKAGE_MIRROR_DIRECTORY: &str = ".tola/builtin-packages";
 
-/// The address the running development server serves a site at, below [`INTERNAL_DIR`].
+/// The address a running `tola dev` serves a site at, below [`INTERNAL_DIR`].
 ///
-/// `tola dev` writes this file when it has bound its listener and removes it when it stops, so a
+/// `tola dev` writes this file once its listener is bound and removes it when it stops, so a
 /// process beside it — the language server, which an editor starts separately — names the address
 /// of one page without the author configuring it twice. A missing file, or one this version does
-/// not read, names no development server.
-pub const DEV_SERVER_STATE_FILE: &str = ".tola/dev-server.json";
+/// not read, names no development server. A server killed before it stops leaves its file behind;
+/// the next one replaces it.
+pub const DEV_SERVER_ADDRESS_FILE: &str = ".tola/dev-server.json";
 
-/// The shape [`DEV_SERVER_STATE_FILE`] is written in.
-pub const DEV_SERVER_STATE_VERSION: u32 = 1;
+/// The shape [`DEV_SERVER_ADDRESS_FILE`] is written in.
+pub const DEV_SERVER_ADDRESS_VERSION: u32 = 1;
 
 /// The package document a file below a package directory names, when the directory is one.
 ///
@@ -95,6 +97,7 @@ pub fn publication_workspace(output: &std::path::Path) -> Option<std::path::Path
     Some(output.with_file_name(name))
 }
 
+pub use dev_server::DevServerAddress;
 pub(crate) use file_handle::open_regular_file;
 pub use identity::FilesystemSourceIdentity;
 pub(crate) use identity::{FilesystemSourceKind, FilesystemWatchEvidence};
