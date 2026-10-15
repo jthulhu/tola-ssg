@@ -157,7 +157,7 @@ impl Selection<'_> {
             cancellation,
         )
     }
-    /// The text of an `asset-url` argument the cursor sits in, with the bytes it occupies.
+    /// The text of a `asset-url` argument the cursor sits in, with the bytes it occupies.
     ///
     /// The parameter's declared domain decides whether an argument names a published URL, and the
     /// callee's own metadata decides the parameter, so an alias, an imported binding, or a
@@ -232,7 +232,7 @@ impl Selection<'_> {
         Ok(None)
     }
 
-    /// The hover an `asset-url` argument earns: where the URL it writes is published, or that no
+    /// The hover a `asset-url` argument earns: where the URL it writes is published, or that no
     /// `assets` declaration of this site publishes it.
     pub(super) fn asset_url_hover(
         &self,
@@ -1166,7 +1166,7 @@ mod tests {
         }
     }
 
-    /// An `asset-url` argument completes with the site's published URLs — in the declaration's own
+    /// A `asset-url` argument completes with the site's published URLs — in the declaration's own
     /// order — and a hover over one names the address a browser fetches it at.
     #[test]
     fn asset_url_argument_answers_published_urls() {
@@ -1181,7 +1181,7 @@ mod tests {
             .hover_text(
                 "#import \"@tola/host:0.0.0\": asset-url\n#metadata(asset-url(\"/brand/logo.sv|g\"))\n",
             )
-            .expect("an asset-url argument answers");
+            .expect("a asset-url argument answers");
         assert!(hover.contains("published at"), "{hover}");
         assert!(hover.contains("/brand/logo.svg"), "{hover}");
     }
