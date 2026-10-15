@@ -440,6 +440,11 @@ pub(crate) const DEV: Table = Table {
             action: Action::Last,
         },
         Binding {
+            keys: &[Key::character('c', "c")],
+            label: "copy",
+            action: Action::Copy,
+        },
+        Binding {
             keys: &[Key::control('c', "Ctrl+C")],
             label: "stop",
             action: Action::Quit,

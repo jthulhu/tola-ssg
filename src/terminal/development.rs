@@ -8,7 +8,8 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use chrono::{DateTime, Local};
+use anstyle_parse::{DefaultCharAccumulator, Params, Parser, Perform};
+use chrono::{DateTime, Local, NaiveDate};
 use crossterm::execute;
 use crossterm::terminal::{BeginSynchronizedUpdate, EndSynchronizedUpdate};
 use ratatui::backend::CrosstermBackend;
@@ -49,6 +50,18 @@ impl Round {
                 .iter()
                 .all(|diagnostic| self.diagnostics.contains(diagnostic))
     }
+}
+
+/// The stamp a round carries in the counter: a reader places today's rounds by
+/// time alone, while an earlier day is named, because its bare time would read
+/// as today's.
+fn round_stamp(observed_at: DateTime<Local>, today: NaiveDate) -> String {
+    let format = if observed_at.date_naive() == today {
+        "%H:%M:%S"
+    } else {
+        "%Y-%m-%d %H:%M:%S"
+    };
+    observed_at.format(format).to_string()
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -269,6 +282,17 @@ impl Rounds {
         })
     }
 
+    /// The places round navigation walks: every diagnostic round, plus the latest clean
+    /// result, which is a place to stand though it never enters history.
+    fn positions(&self) -> usize {
+        self.entries.len()
+            + usize::from(
+                self.latest
+                    .as_ref()
+                    .is_some_and(|round| round.diagnostics.is_empty()),
+            )
+    }
+
     fn previous(&mut self) {
         if !self.live(Action::PreviousRound) {
             return;
@@ -318,6 +342,9 @@ impl Rounds {
                 .as_ref()
                 .zip(self.latest.as_ref())
                 .is_some_and(|(selected, latest)| !Arc::ptr_eq(selected, latest)),
+            Action::Copy => self
+                .current()
+                .is_some_and(|round| !round.diagnostics.is_empty()),
             _ => true,
         }
     }
@@ -425,12 +452,12 @@ impl DevScreen {
                     return true;
                 }
                 if let Some(action) = keymap::DEV.action(key) {
-                    self.answer(action);
+                    self.answer(action, cancellation);
                 }
             }
             Event::Mouse(mouse) => match mouse.kind {
-                MouseEventKind::ScrollUp => self.answer(Action::Up),
-                MouseEventKind::ScrollDown => self.answer(Action::Down),
+                MouseEventKind::ScrollUp => self.answer(Action::Up, cancellation),
+                MouseEventKind::ScrollDown => self.answer(Action::Down, cancellation),
                 _ => {}
             },
             Event::Resize(_, _) => self.dirty = true,
@@ -439,7 +466,7 @@ impl DevScreen {
         false
     }
 
-    fn answer(&mut self, action: Action) {
+    fn answer(&mut self, action: Action, cancellation: &crate::cancellation::Cancellation) {
         let page = self.rounds.body_rows.max(1) as isize;
         match action {
             Action::PreviousRound => self.rounds.previous(),
@@ -450,9 +477,56 @@ impl DevScreen {
             Action::PageDown => self.rounds.scroll(page),
             Action::First => self.rounds.top = 0,
             Action::Last => self.rounds.top = usize::MAX,
+            Action::Copy => self.copy(cancellation),
             _ => return,
         }
         self.dirty = true;
+    }
+
+    /// Put the visible round's text on the reader's clipboard.
+    ///
+    /// The terminal's own escape is best effort — a terminal only reads it when it allows
+    /// programs to write the clipboard — so the system's pasteboard decides what the reader
+    /// can trust.
+    fn copy(&mut self, cancellation: &crate::cancellation::Cancellation) {
+        if !self.rounds.live(Action::Copy) {
+            return;
+        }
+        let Some(round) = self.rounds.current().cloned() else {
+            return;
+        };
+        let text = plain_text(&round.transcript);
+        let text = text.trim_end();
+        if text.is_empty() {
+            return;
+        }
+        let _ = self
+            .writer
+            .write_all(super::clipboard::escape(text).as_bytes());
+        let count = round.diagnostics.len();
+        let copied = match crate::sys::clipboard_command() {
+            Some(program) => {
+                let mut command = std::process::Command::new(program);
+                crate::sys::run_command_with_input(
+                    &mut command,
+                    text.as_bytes(),
+                    &cancellation.token(),
+                )
+                .is_ok_and(|status| status.success())
+            }
+            None => true,
+        };
+        self.message = Some(if copied {
+            format!(
+                "copied {}",
+                super::progress::plural_count(count, "diagnostic")
+            )
+        } else {
+            format!(
+                "could not copy {}",
+                super::progress::plural_count(count, "diagnostic")
+            )
+        });
     }
 
     pub(crate) fn prepare(&mut self) -> io::Result<()> {
@@ -504,10 +578,10 @@ impl DevScreen {
         );
         let counter = match self.rounds.current() {
             Some(round) => {
-                let time = round.observed_at.format("%H:%M:%S");
+                let time = round_stamp(round.observed_at, Local::now().date_naive());
                 match self.rounds.index() {
                     Some(index) => {
-                        format!("round {}/{} {time}", index + 1, self.rounds.entries.len())
+                        format!("round {}/{} {time}", index + 1, self.rounds.positions())
                     }
                     None => format!("Ready {time}"),
                 }
@@ -604,7 +678,7 @@ fn draw_jobs(frame: &mut ratatui::Frame<'_>, area: Rect, jobs: &[Job]) {
     }
 }
 
-const ACCEPTED: [Action; 9] = [
+const ACCEPTED: [Action; 10] = [
     Action::PreviousRound,
     Action::NextRound,
     Action::Up,
@@ -613,11 +687,12 @@ const ACCEPTED: [Action; 9] = [
     Action::PageDown,
     Action::First,
     Action::Last,
+    Action::Copy,
     Action::Quit,
 ];
 
 fn styled_paragraph(text: &str) -> Paragraph<'static> {
-    Paragraph::new(Text::from(styled_lines(&text.replace('\t', "    ")))).wrap(Wrap { trim: false })
+    Paragraph::new(Text::from(styled_lines(text))).wrap(Wrap { trim: false })
 }
 
 /// The dev keys whose action still changes the view.
@@ -628,39 +703,104 @@ fn live_actions(rounds: &Rounds) -> Vec<Action> {
         .collect()
 }
 
+/// The dev view's text as styled lines, every control sequence applied or consumed whole.
+///
+/// An SGR sequence chooses the style of what follows; any other sequence, a hyperlink's OSC
+/// included, is control text that never reaches the frame as characters.
 fn styled_lines(text: &str) -> Vec<Line<'static>> {
-    let mut lines = vec![Line::default()];
-    let mut style = Style::default();
-    let mut rest = text;
-    while !rest.is_empty() {
-        let next = rest.find(['\n', '\u{1b}']).unwrap_or(rest.len());
-        push_span(lines.last_mut().expect("one line"), &rest[..next], style);
-        rest = &rest[next..];
-        if let Some(tail) = rest.strip_prefix('\n') {
-            lines.push(Line::default());
-            rest = tail;
-        } else if let Some(tail) = rest.strip_prefix("\u{1b}[") {
-            let end = tail.find(|character: char| ('@'..='~').contains(&character));
-            match end {
-                Some(end) => {
-                    if tail.as_bytes()[end] == b'm' {
-                        apply_sgr(&mut style, &tail[..end]);
-                    }
-                    rest = &tail[end + 1..];
-                }
-                None => break,
+    struct Stylist {
+        lines: Vec<Line<'static>>,
+        run: String,
+        style: Style,
+    }
+
+    impl Stylist {
+        fn flush(&mut self) {
+            if !self.run.is_empty() {
+                push_span(
+                    self.lines.last_mut().expect("one line"),
+                    &self.run,
+                    self.style,
+                );
+                self.run.clear();
             }
-        } else if let Some(tail) = rest.strip_prefix('\u{1b}') {
-            rest = tail;
         }
     }
-    lines
+
+    impl Perform for Stylist {
+        fn print(&mut self, character: char) {
+            self.run.push(character);
+        }
+
+        fn execute(&mut self, byte: u8) {
+            match byte {
+                b'\n' => {
+                    self.flush();
+                    self.lines.push(Line::default());
+                }
+                b'\t' => self.run.push_str("    "),
+                _ => {}
+            }
+        }
+
+        fn csi_dispatch(
+            &mut self,
+            params: &Params,
+            _intermediates: &[u8],
+            _ignore: bool,
+            action: u8,
+        ) {
+            if action == b'm' {
+                self.flush();
+                apply_sgr(&mut self.style, params);
+            }
+        }
+    }
+
+    let mut stylist = Stylist {
+        lines: vec![Line::default()],
+        run: String::new(),
+        style: Style::default(),
+    };
+    let mut parser = Parser::<DefaultCharAccumulator>::new();
+    for byte in text.bytes() {
+        parser.advance(&mut stylist, byte);
+    }
+    stylist.flush();
+    stylist.lines
 }
 
-fn apply_sgr(style: &mut Style, parameters: &str) {
-    let mut values = parameters
-        .split(';')
-        .map(|value| value.parse::<u8>().unwrap_or(0));
+/// The plain text a styled transcript prints: the clipboard takes text, not a terminal, so
+/// styling is consumed and a hyperlink's payload never becomes characters.
+fn plain_text(text: &str) -> String {
+    struct Plain(String);
+
+    impl Perform for Plain {
+        fn print(&mut self, character: char) {
+            self.0.push(character);
+        }
+
+        fn execute(&mut self, byte: u8) {
+            match byte {
+                b'\n' => self.0.push('\n'),
+                b'\t' => self.0.push_str("    "),
+                _ => {}
+            }
+        }
+    }
+
+    let mut plain = Plain(String::new());
+    let mut parser = Parser::<DefaultCharAccumulator>::new();
+    for byte in text.bytes() {
+        parser.advance(&mut plain, byte);
+    }
+    plain.0
+}
+
+fn apply_sgr(style: &mut Style, params: &Params) {
+    let mut values = params
+        .iter()
+        .map(|values| values.first().copied().unwrap_or(0));
     while let Some(value) = values.next() {
         match value {
             0 => *style = Style::default(),
@@ -669,12 +809,12 @@ fn apply_sgr(style: &mut Style, parameters: &str) {
             4 => *style = style.add_modifier(Modifier::UNDERLINED),
             22 => *style = style.remove_modifier(Modifier::BOLD | Modifier::DIM),
             24 => *style = style.remove_modifier(Modifier::UNDERLINED),
-            30..=37 | 90..=97 => *style = style.fg(ansi_color(u16::from(value))),
+            30..=37 | 90..=97 => *style = style.fg(ansi_color(value)),
             38 => {
                 if values.next() == Some(5)
                     && let Some(color) = values.next()
                 {
-                    *style = style.fg(Color::Indexed(color));
+                    *style = style.fg(Color::Indexed(color as u8));
                 }
             }
             39 => *style = style.fg(Color::Reset),
@@ -752,6 +892,27 @@ mod tests {
     }
 
     #[test]
+    fn readys_take_only_the_latest_position() {
+        let mut rounds = Rounds::default();
+        rounds.push(round(vec![diagnostic("content/first.typ")], 1, "failed"));
+        assert_eq!(rounds.positions(), 1, "one diagnostic round");
+        rounds.push(round(Vec::new(), 2, "Built site"));
+        assert_eq!(
+            rounds.positions(),
+            2,
+            "the latest clean result is a place to walk to"
+        );
+        rounds.push(round(vec![diagnostic("content/second.typ")], 3, "failed"));
+        assert_eq!(
+            rounds.positions(),
+            2,
+            "a later failure leaves that clean result no place"
+        );
+        rounds.push(round(Vec::new(), 4, "Built site"));
+        assert_eq!(rounds.positions(), 3, "the newest clean result walks again");
+    }
+
+    #[test]
     fn repeated_diagnostics_refresh_history() {
         let mut rounds = Rounds::default();
         let first = diagnostic("content/first.typ");
@@ -776,6 +937,35 @@ mod tests {
         );
         assert!(Arc::ptr_eq(rounds.selected.as_ref().unwrap(), refreshed));
         assert_eq!(rounds.top, 9);
+    }
+
+    #[test]
+    fn stamps_name_the_day_off_today() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
+        let yesterday = NaiveDate::from_ymd_opt(2026, 10, 14).unwrap();
+        let at = |day, hour, minute, second| {
+            Local
+                .with_ymd_and_hms(2026, 10, day, hour, minute, second)
+                .single()
+                .unwrap()
+        };
+        assert_eq!(round_stamp(at(15, 0, 6, 27), today), "00:06:27");
+        assert_eq!(round_stamp(at(15, 0, 32, 14), today), "00:32:14");
+        assert_eq!(
+            round_stamp(at(14, 23, 33, 37), today),
+            "2026-10-14 23:33:37"
+        );
+        assert_eq!(round_stamp(at(14, 23, 33, 37), yesterday), "23:33:37");
+    }
+
+    #[test]
+    fn copy_follows_diagnostics() {
+        let mut rounds = Rounds::default();
+        assert!(!rounds.live(Action::Copy), "nothing to copy yet");
+        rounds.push(round(vec![diagnostic("content/first.typ")], 1, "failed"));
+        assert!(rounds.live(Action::Copy));
+        rounds.push(round(Vec::new(), 2, "Built site"));
+        assert!(!rounds.live(Action::Copy), "a clean round copies nothing");
     }
 
     #[test]
@@ -912,6 +1102,32 @@ mod tests {
                     .any(|span| span.style.fg.is_some_and(|color| color != Color::Reset))
             );
         }
+    }
+
+    #[test]
+    fn osc_payloads_never_become_text() {
+        let lines =
+            styled_lines("a\u{1b}]8;;http://127.0.0.1:1/\u{1b}\\link\u{1b}]8;;\u{1b}\\\u{1b}[4mb");
+        let drawn = lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert_eq!(drawn, "alinkb", "a hyperlink's address never becomes text");
+        assert!(
+            lines
+                .iter()
+                .flat_map(|line| &line.spans)
+                .last()
+                .is_some_and(|span| span.style.add_modifier.contains(Modifier::UNDERLINED)),
+            "the SGR that follows still styles"
+        );
+    }
+
+    #[test]
+    fn plain_text_drops_styling_and_payloads() {
+        let text = "a\u{1b}]8;;http://127.0.0.1:1/\u{1b}\\link\u{1b}]8;;\u{1b}\\\u{1b}[31mred\u{1b}[0m\nsecond\tline";
+        assert_eq!(plain_text(text), "alinkred\nsecond    line");
     }
 
     #[test]

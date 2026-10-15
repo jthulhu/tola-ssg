@@ -5421,6 +5421,7 @@ name = "tola"
 version = "0.8.0"
 dependencies = [
  "anstream",
+ "anstyle-parse",
  "anyhow",
  "arc-swap",
  "base64 0.22.1",

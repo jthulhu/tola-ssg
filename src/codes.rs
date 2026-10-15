@@ -143,6 +143,7 @@ pub mod terminal {
 
     /// Terminal output could not be written.
     pub const WRITE: DiagnosticCode = DiagnosticCode::new("terminal.write");
+    pub const PAGER: DiagnosticCode = DiagnosticCode::new("terminal.pager");
 }
 
 /// Filesystem observation.
@@ -200,7 +201,7 @@ mod tests {
         ("log", &[log::LOCATION, log::UNAVAILABLE, log::WRITE]),
         ("reload", &[reload::PORT_IN_USE]),
         ("server", &[server::NETWORK_EXPOSED, server::PORT_IN_USE]),
-        ("terminal", &[terminal::WRITE]),
+        ("terminal", &[terminal::WRITE, terminal::PAGER]),
         (
             "watch",
             &[
