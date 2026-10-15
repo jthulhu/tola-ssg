@@ -298,6 +298,7 @@ pub struct Diagnostic {
     pub imported_by: Vec<String>,
     pub notes: Vec<String>,
     pub help: Vec<Help>,
+    /// The call stack behind this diagnostic, innermost first, as the terminal shows it.
     pub trace: Vec<TraceFrame>,
     /// The cause this diagnostic classified, absent when no correction applies.
     #[serde(skip_serializing_if = "Option::is_none")]

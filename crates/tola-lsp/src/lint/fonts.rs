@@ -150,7 +150,7 @@ fn help(name: &str, families: &[&str]) -> Option<String> {
     {
         return Some(format!("this font is installed as `{installed}`"));
     }
-    if let Some(closest) = crate::nearest::closest(name, families.iter().copied()) {
+    if let Some(closest) = tola_typst::spelling::closest(name, families.iter().copied()) {
         return Some(format!("did you mean `{closest}`?"));
     }
     if name.contains(',') {

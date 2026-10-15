@@ -269,8 +269,11 @@ pub fn resolve_diagnostic_with_options<W: World>(
     context_limit: SourceContextLimit,
 ) -> Diagnostic {
     let diag = native.source();
-    let location =
-        SpanLocation::resolved_location(&SpanLocation::resolve(world, diag.span, context_limit));
+    let location = SpanLocation::resolved_location(&SpanLocation::resolve(
+        world,
+        native.primary_span(),
+        context_limit,
+    ));
 
     let hints = diag
         .hints
@@ -285,9 +288,8 @@ pub fn resolve_diagnostic_with_options<W: World>(
         })
         .collect();
 
-    let traces = diag
-        .trace
-        .iter()
+    let traces = native
+        .retained_traces()
         .map(|t| {
             use typst::diag::Tracepoint;
 
@@ -375,6 +377,20 @@ mod tests {
         (directory, world)
     }
 
+    /// A span inside one package's `lib.typ`, for a diagnostic raised in a package.
+    fn package_span(package: &str) -> Span {
+        use typst::syntax::{FileId, RootedPath, VirtualPath, VirtualRoot};
+        Source::new(
+            FileId::new(RootedPath::new(
+                VirtualRoot::Package(package.parse().unwrap()),
+                VirtualPath::new("lib.typ").unwrap(),
+            )),
+            "text".into(),
+        )
+        .root()
+        .span()
+    }
+
     #[test]
     fn span_resolves_to_written_position() {
         let text = "#let unused = 1\n#link(\"/nowhere.html\")[Read more]\n";
@@ -437,8 +453,95 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "legacy-serialization")]
-    #[allow(deprecated)]
+    #[test]
+    fn caller_projection_keeps_authored_traces() {
+        use super::super::{DiagnosticProjection, producer_error};
+        use typst::diag::Tracepoint;
+        use typst::syntax::Spanned;
+
+        let (_directory, world) = world("Primary\nHelper\n");
+        let source = world.source(world.main()).unwrap();
+        let primary = find_text(source.root(), "Primary").unwrap().span();
+        let helper = find_text(source.root(), "Helper").unwrap().span();
+        let wrapper = package_span("@tola/schema:0.0.0");
+        let package_helper = package_span("@preview/site-helper:1.0.0");
+        let mut error = producer_error(
+            wrapper,
+            "SchemaArgument",
+            &[],
+            "expected a schema declaration",
+            DiagnosticProjection::through(["@tola/schema:0.0.0".parse().unwrap()]),
+        );
+        for (name, span) in [
+            ("assert-schema", wrapper),
+            ("parse-sources", primary),
+            ("site-helper", helper),
+            ("package-helper", package_helper),
+        ] {
+            error
+                .trace
+                .push(Spanned::new(Tracepoint::Call(Some(name.into())), span));
+        }
+        let raw_trace = error.trace.clone();
+        let native = NativeDiagnostic::from(error);
+        let resolved = resolve_diagnostic(&world, &native);
+        assert_eq!(resolved.location.path.as_deref(), Some("main.typ"));
+        assert_eq!(resolved.location.line, Some(1));
+        assert_eq!(resolved.traces.len(), 2);
+        assert_eq!(
+            resolved.traces[0].kind,
+            TraceKind::Call(Some("site-helper".into()))
+        );
+        assert_eq!(resolved.traces[0].location.line, Some(2));
+        assert_eq!(
+            resolved.traces[1].kind,
+            TraceKind::Call(Some("package-helper".into()))
+        );
+        assert_eq!(native.source().span, DiagSpan::from(wrapper));
+        assert_eq!(native.source().trace, raw_trace);
+
+        let mut ordinary = SourceDiagnostic::error(wrapper, "callback failure");
+        ordinary.trace = raw_trace;
+        let ordinary = NativeDiagnostic::from(ordinary);
+        assert_eq!(resolve_diagnostic(&world, &ordinary).traces.len(), 4);
+    }
+
+    #[test]
+    fn authored_span_is_its_own_primary() {
+        use super::super::{DiagnosticProjection, producer_error};
+        use typst::diag::Tracepoint;
+        use typst::syntax::Spanned;
+
+        let (_directory, world) = world("Metadata\nCaller\n");
+        let source = world.source(world.main()).unwrap();
+        let metadata = find_text(source.root(), "Metadata").unwrap().span();
+        let caller = find_text(source.root(), "Caller").unwrap().span();
+        let mut error = producer_error(
+            metadata,
+            "SourceIssue",
+            &[],
+            "duplicate order",
+            DiagnosticProjection::through(["@tola/source:0.0.0".parse().unwrap()]),
+        );
+        for (name, span) in [
+            ("report-source-issues", package_span("@tola/source:0.0.0")),
+            ("parse-sources", caller),
+        ] {
+            error
+                .trace
+                .push(Spanned::new(Tracepoint::Call(Some(name.into())), span));
+        }
+        let resolved = resolve_diagnostic(&world, &NativeDiagnostic::from(error));
+        assert_eq!(resolved.location.path.as_deref(), Some("main.typ"));
+        assert_eq!(resolved.location.line, Some(1));
+        assert_eq!(resolved.traces.len(), 1);
+        assert_eq!(
+            resolved.traces[0].kind,
+            TraceKind::Call(Some("parse-sources".into()))
+        );
+        assert_eq!(resolved.traces[0].location.line, Some(2));
+    }
+
     #[test]
     fn ranges_survive_excerpt_truncation() {
         let text = format!("{}🦊alpha\r\nβ🦊z", " ".repeat(5000));
@@ -492,17 +595,6 @@ mod tests {
         assert_eq!(
             resolved.location.truncation.omitted_bytes,
             5000 + "🦊alphaβ🦊z".len() - "alpha".len()
-        );
-        let serialized = serde_json::to_string(&resolved.to_resolved()).unwrap();
-        let decoded: crate::ResolvedDiagnostic = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(decoded.source.unwrap().range, Some(expected));
-        assert_eq!(
-            decoded.hints[0].source.as_ref().unwrap().range,
-            Some(expected)
-        );
-        assert_eq!(
-            decoded.trace[0].source.as_ref().unwrap().range.unwrap().end,
-            expected.end
         );
     }
 

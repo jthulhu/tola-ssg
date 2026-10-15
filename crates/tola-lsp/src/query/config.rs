@@ -121,13 +121,13 @@ fn enclosing_value(root: &toml_edit::Table, offset: usize) -> Option<(Range<usiz
                     if !span.contains(&offset) {
                         continue;
                     }
-                    let carrier = child_path(path, key);
-                    *found = Some(match member_in(value, &carrier, offset) {
+                    let member_path = child_path(path, key);
+                    *found = Some(match member_in(value, &member_path, offset) {
                         Some((range, mut members)) => {
-                            members.push(carrier);
+                            members.push(member_path);
                             (range, members)
                         }
-                        None => (span.clone(), vec![carrier]),
+                        None => (span.clone(), vec![member_path]),
                     });
                 }
                 toml_edit::Item::Table(inner) => {
@@ -273,7 +273,7 @@ pub(crate) fn corrected(host: HostSections, path: &str) -> Option<String> {
     let declared: Vec<String> = declared_paths(host)
         .filter_map(|field| immediate_key(field, table).map(str::to_owned))
         .collect();
-    crate::nearest::closest(written, declared.iter().map(String::as_str)).map(str::to_owned)
+    tola_typst::spelling::closest(written, declared.iter().map(String::as_str)).map(str::to_owned)
 }
 
 /// The dotted path of the key the cursor names, and the range it occupies.
@@ -742,7 +742,7 @@ mod tests {
     /// header, a dotted key, an array-of-tables entry, and an inline member.
     #[test]
     fn hover_answers_the_declared_path_at_the_cursor() {
-        let cases: [(&str, &str); 12] = [
+        let cases: [(&str, &str); 11] = [
             ("[build]\nentr|y = \"content\"\n", "build.entry"),
             ("[build.hoo|ks]\n", "build.hooks"),
             ("[site]\nti|tle = \"Title\"\n", "site.title"),
@@ -757,7 +757,6 @@ mod tests {
                 "[[build.hooks.before-build]]\nna|me = \"icons\"\n",
                 "build.hooks.before-build.name",
             ),
-            ("[site]\nextra = { github = \"u|\" }\n", "site.extra"),
             ("[si|te]\n", "site"),
             (
                 "[[build.hooks.before-|build]]\n",

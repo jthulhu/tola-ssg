@@ -96,7 +96,6 @@ mod lenses;
 mod links;
 mod lint;
 mod markdown;
-mod nearest;
 mod on_enter;
 mod packages;
 mod position;

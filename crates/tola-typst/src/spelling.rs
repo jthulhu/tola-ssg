@@ -1,16 +1,14 @@
 //! The declared name a written name nearly spells.
-//!
-//! A quick fix offers the closest declared name only when it is close enough to be a typo of it:
-//! beyond that distance the author wrote something else, and rewriting it would be a guess.
 
-/// The closest of `candidates` to `name`, if any is within the distance of a typo.
-pub(crate) fn closest<'a>(
-    name: &str,
-    candidates: impl Iterator<Item = &'a str>,
-) -> Option<&'a str> {
-    candidates
-        .filter(|candidate| *candidate != name)
-        .map(|candidate| (distance(name, candidate), candidate))
+/// The closest of `declared` to `written`, if any is within the distance of a typo.
+///
+/// A suggestion offers the closest declared name only when it is close enough to be a typo of the
+/// written one: beyond that distance the author wrote something else, and naming it would be a
+/// guess. An exact match needs no suggestion, so it is never returned.
+pub fn closest<'a>(written: &str, declared: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+    declared
+        .filter(|candidate| *candidate != written)
+        .map(|candidate| (distance(written, candidate), candidate))
         .filter(|(distance, _)| *distance <= MAXIMUM_DISTANCE)
         .min_by(|(left, left_name), (right, right_name)| {
             left.cmp(right).then_with(|| left_name.cmp(right_name))

@@ -538,7 +538,7 @@ impl NameGraph {
             return Vec::new();
         };
         let Some(binding) = selected.binding else {
-            return self.unresolved_carriers(file, &selected.range);
+            return self.unestablished_imports(file, &selected.range);
         };
         let NameOrigin::Declaration(id) = self.canonical(binding) else {
             return Vec::new();
@@ -583,7 +583,7 @@ impl NameGraph {
     /// unresolved, and a module binding one introduces can supply the member a field read spells.
     /// A spelling the graph resolved is not one of them: a known value is evidence, not an
     /// unknown, and an argument label or an import path segment arrives through neither.
-    fn unresolved_carriers(&self, file: FileId, range: &Range<usize>) -> Vec<PendingImport> {
+    fn unestablished_imports(&self, file: FileId, range: &Range<usize>) -> Vec<PendingImport> {
         let source = &self.sources[&file];
         let Some((written, resolved)) = source
             .occurrences()
@@ -622,7 +622,7 @@ impl NameGraph {
                 }
                 Some(root) => {
                     module_statements.contains(&statement)
-                        && self.module_carriers(file, statement).contains(&root)
+                        && self.module_bindings(file, statement).contains(&root)
                 }
             };
             if reached {
@@ -856,18 +856,18 @@ impl NameGraph {
         if self.interface_established(file, statement) {
             return carried;
         }
-        let carriers = self.module_carriers(file, statement);
+        let module_bindings = self.module_bindings(file, statement);
         let mut holders: Vec<(FileId, BTreeSet<BindingId>)> = Vec::new();
-        for &carrier in &carriers {
-            let holder = self.bindings[carrier].file;
+        for &binding in &module_bindings {
+            let holder = self.bindings[binding].file;
             match holders.iter_mut().find(|(file, _)| *file == holder) {
                 Some((_, roots)) => {
-                    roots.insert(carrier);
+                    roots.insert(binding);
                 }
-                None => holders.push((holder, BTreeSet::from([carrier]))),
+                None => holders.push((holder, BTreeSet::from([binding]))),
             }
         }
-        for (holder, carriers) in holders {
+        for (holder, holder_bindings) in holders {
             let source = &self.sources[&holder];
             carried.extend(
                 source
@@ -881,7 +881,7 @@ impl NameGraph {
                         (resolved.binding.is_none()
                             && self
                                 .root_binding(holder, path)
-                                .is_some_and(|root| carriers.contains(&root)))
+                                .is_some_and(|root| holder_bindings.contains(&root)))
                         .then(|| source.text(&occurrence.range))
                     }),
             );
@@ -891,8 +891,8 @@ impl NameGraph {
 
     /// The bindings that hold one statement's unknown module value, in every file: the module
     /// binding it introduces, and every binding that aliases or imports the same value.
-    fn module_carriers(&self, file: FileId, statement: usize) -> BTreeSet<BindingId> {
-        let mut carriers: BTreeSet<BindingId> = self.sources[&file]
+    fn module_bindings(&self, file: FileId, statement: usize) -> BTreeSet<BindingId> {
+        let mut module_bindings: BTreeSet<BindingId> = self.sources[&file]
             .declarations()
             .iter()
             .enumerate()
@@ -904,15 +904,15 @@ impl NameGraph {
             })
             .map(|(declaration, _)| self.locals[&file][declaration])
             .collect();
-        if carriers.is_empty() {
-            return carriers;
+        if module_bindings.is_empty() {
+            return module_bindings;
         }
         // Every binding that takes the value of another: an item of some file's interface, or a
         // local alias of it. Following these edges reaches the files the value was passed to.
-        let mut carried_by: Vec<(BindingId, BindingId)> = Vec::new();
+        let mut taken_by: Vec<(BindingId, BindingId)> = Vec::new();
         for (id, binding) in self.bindings.iter().enumerate() {
             if let Some(target) = self.imported_binding(id) {
-                carried_by.push((target, id));
+                taken_by.push((target, id));
             }
             let Some(declaration) = binding.declaration else {
                 continue;
@@ -921,21 +921,21 @@ impl NameGraph {
                 &self.sources[&binding.file].declarations()[declaration].initializer
                 && let Some(root) = self.root_binding(binding.file, alias)
             {
-                carried_by.push((root, id));
+                taken_by.push((root, id));
             }
         }
         loop {
-            let before = carriers.len();
-            for &(target, carrier) in &carried_by {
-                if carriers.contains(&target) {
-                    carriers.insert(carrier);
+            let before = module_bindings.len();
+            for &(target, taker) in &taken_by {
+                if module_bindings.contains(&target) {
+                    module_bindings.insert(taker);
                 }
             }
-            if carriers.len() == before {
+            if module_bindings.len() == before {
                 break;
             }
         }
-        carriers
+        module_bindings
     }
 
     /// The local binding a name path's first segment resolves to.
@@ -1984,11 +1984,11 @@ mod tests {
         );
     }
 
-    /// A module value an interface unknown to the graph carries into another file keeps its
-    /// members under the rename contract: the chain that reads a member through the imported value
-    /// either sends its statement to the compiler lane or refuses an incomplete rename.
+    /// A module value an interface unknown to the graph takes into another file keeps its members
+    /// under the rename contract: the chain that reads a member through the imported value either
+    /// sends its statement to the compiler lane or refuses an incomplete rename.
     #[test]
-    fn module_carrier_chain_refuses_rename() {
+    fn module_binding_chain_refuses_rename() {
         let sources = [
             ("content/lib.typ", "#let greet = [hello]"),
             (

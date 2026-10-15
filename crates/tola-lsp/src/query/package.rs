@@ -14,7 +14,6 @@ use tola_typst::typst::syntax::{
     FileId, LinkedNode, RootedPath, Side, Source, SyntaxKind, VirtualPath, VirtualRoot, ast,
 };
 
-use crate::nearest;
 use crate::packages::{PackageAccess, importable_packages, installed_versions};
 use crate::position;
 use crate::protocol::{SourceQuery, SourceReply};
@@ -293,7 +292,8 @@ fn nearest_builtin(name: &str) -> Option<BuiltinPackage> {
         .map(|package| (package.spec().name.to_string(), package))
         .collect();
     let closest =
-        nearest::closest(name, packages.iter().map(|(name, _)| name.as_str()))?.to_owned();
+        tola_typst::spelling::closest(name, packages.iter().map(|(name, _)| name.as_str()))?
+            .to_owned();
     packages
         .into_iter()
         .find(|(candidate, _)| *candidate == closest)

@@ -204,7 +204,11 @@ pub enum TraceKind {
     Include(String),
 }
 
-/// Stack trace entry.
+/// One frame of the call stack that reached a diagnostic, innermost first.
+///
+/// It is the stack active when the diagnostic was produced, not a history. Every frame the author
+/// could have written is retained: none can be told to carry the value the diagnostic complains
+/// about, so the reader of the resolved diagnostic decides how many to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Trace {
     /// Structured tracepoint kind.

@@ -5696,7 +5696,6 @@ dependencies = [
  "rustc-hash",
  "ruzstd",
  "serde",
- "serde_json",
  "tempfile",
  "thiserror",
  "ttf-parser",

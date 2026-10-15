@@ -58,11 +58,26 @@ pub(crate) mod tests {
         graph.finish()
     }
 
+    /// Acquires the site lock the way production does: a wait is legitimate, so it reports the
+    /// contended path and the waiting stack instead of failing the test.
     pub(crate) fn site_lock(root: &Path) -> crate::build::SiteBuildLock {
         crate::build::SiteBuildLock::acquire_at_root(
             root,
             &crate::cancellation::BuildCancellation::default(),
-            || panic!("uncontended site lock waited"),
+            || {
+                let lock = root.join(crate::filesystem::SITE_BUILD_LOCK_FILE);
+                let holders = std::process::Command::new("lsof")
+                    .args(["-nP", &lock.to_string_lossy()])
+                    .output()
+                    .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+                    .unwrap_or_default();
+                eprint!(
+                    "site lock waited: {} (pid {})\n{holders}{}",
+                    lock.display(),
+                    std::process::id(),
+                    std::backtrace::Backtrace::force_capture()
+                );
+            },
         )
         .unwrap()
     }

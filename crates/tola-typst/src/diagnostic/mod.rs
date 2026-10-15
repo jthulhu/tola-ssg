@@ -18,14 +18,11 @@ pub use message::{
     Diagnostic, Hint, LocationFailure, SourceContextLimit, SourceLine, SourceLocation,
     SourcePosition, SourceRange, SourceTruncation, Trace, TraceKind,
 };
-pub use native::{DiagnosticOrigin, NativeDiagnostic, ProducerDiagnosticOrigin, producer_warning};
-pub use panic::{ExplainedPanic, explained_panic};
-#[cfg(feature = "legacy-serialization")]
-#[allow(deprecated)]
-pub use resolved::{
-    ResolvedDiagnostic, ResolvedHint, ResolvedLocationFailure, ResolvedSeverity,
-    ResolvedSourceLine, ResolvedSpan, ResolvedTrace, ResolvedTraceKind, ResolvedTruncation,
+pub use native::{
+    DiagnosticOrigin, DiagnosticProjection, NativeDiagnostic, ProducerDiagnosticOrigin,
+    producer_error, producer_warning, projected_span,
 };
+pub use panic::{ExplainedPanic, explained_panic};
 pub use resolved::{
     ResolvedPackageFailure, ResolvedPackageFailureReason, ResolvedPackageSearch, ResolvedSource,
 };
