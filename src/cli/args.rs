@@ -1015,7 +1015,7 @@ mod tests {
         assert!(
             rendered.contains(
                 "[possible values: starter-stylesheet, canonical, feed, sitemap, open-graph, \
-                 twitter-card, pagefind, deno-toolchain, tailwind-css]"
+                 twitter-card, pagefind, deno-toolchain, tailwind-css, justfile]"
             ),
             "{rendered}"
         );

@@ -1,6 +1,6 @@
 //! Assembly of the generated Typst program.
 
-use super::features::{HeadFragment, SeoCode, SeoOutput};
+use super::features::{HeadFragment, SeoCode, SeoOutput, SeoValue};
 
 pub(super) const SITE_PATH: &str = "site.typ";
 pub(super) const SCHEMA_PATH: &str = "site/schema.typ";
@@ -30,6 +30,15 @@ fn page_template(source: &str, head: &[HeadFragment]) -> String {
 
 pub(super) fn seo_source(seo: &[SeoCode]) -> String {
     let source = replace_template(SEO_SOURCE, "{{imports}}", &seo_imports(seo));
+    let social_image = if seo
+        .iter()
+        .any(|code| code.prelude.contains(&SeoValue::Image))
+    {
+        "\n\n#let social-image = \"\""
+    } else {
+        ""
+    };
+    let source = replace_template(&source, "{{social-image}}", social_image);
     let source = replace_template(&source, "{{entries}}", &seo_entries(seo));
     replace_template(&source, "{{outputs}}", &seo_outputs(seo))
 }

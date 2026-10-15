@@ -1,4 +1,4 @@
-{{imports}}
+{{imports}}{{social-image}}
 
 /// The head entries one document carries: the character set, the viewport, the title, the
 /// description, and the entries the selected features add for a page.

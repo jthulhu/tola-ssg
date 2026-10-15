@@ -1,6 +1,6 @@
 // Add custom page fields here; unknown fields are errors.
 
-#import "@tola/schema:0.0.0": describe, literal, nullable, optional, schema, union, one-or-many, trim
+#import "@tola/schema:0.0.0": describe, literal, nullable, optional, schema, union, one-or-many, trim, url-path, date, timestamp
 #import "@tola/site:0.0.0": site
 
 /// One page author: a `name`, with an optional `email` and `url`.
@@ -37,7 +37,7 @@
     "keeps the page out of the published site",
   ),
   permalink: describe(
-    optional(nullable(str), default: none),
+    optional(nullable(url-path), default: none),
     "overrides the file-based route: `/about/` is a directory, `/about.html` is a file",
   ),
   feed: describe(
@@ -53,12 +53,12 @@
     "a stable feed identifier; `auto` derives one from the page's address",
   ),
   published: describe(
-    optional(nullable(union(datetime, str)), default: none),
-    "the publication date: a complete `datetime` or an RFC 3339 string with timezone",
+    optional(nullable(timestamp), default: none),
+    "the publication time: a calendar datetime interpreted as UTC, or an RFC 3339 string with timezone",
   ),
   updated: describe(
-    optional(nullable(union(datetime, str)), default: none),
-    "the last change: a complete `datetime` or an RFC 3339 string with timezone",
+    optional(nullable(union(date, timestamp)), default: none),
+    "the last change: a calendar date or timestamp; date-only values keep their calendar precision",
   ),
   feed-summary: describe(
     optional(nullable(union(trim(str), content)), default: none),

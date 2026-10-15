@@ -233,11 +233,11 @@ fn styled_report(block: &str, palette: Palette) -> String {
     format!("{}\n{rest}", palette.heading(header))
 }
 
-/// The commands that take the author from an empty scaffold to a built site.
+/// The commands that take the author from a new scaffold to a built site.
 fn next_steps(root: &Path, effects: &Effects) -> String {
     let mut steps = vec![format!("Switch to `{}`.", display_path_toward_home(root))];
     steps.extend(effects.next_steps.iter().map(|step| (*step).to_owned()));
-    steps.push("Create `content/index.typ` with your first page.".to_owned());
+    steps.push("Edit `content/index.typ` to write your first page.".to_owned());
     steps.push("Run: `tola dev`".to_owned());
     format!("Next steps:\n  {}", steps.join("\n  "))
 }
@@ -310,9 +310,10 @@ mod tests {
                 .file_contents(Path::new("static/tailwind-sources/site.css"))
                 .is_some()
         );
+        assert!(writes.file_contents(Path::new("justfile")).is_some());
         let report = next_steps(root, &rich);
-        assert!(report.contains("`just setup`"), "{report}");
-        assert!(report.contains("`just css`"), "{report}");
+        assert!(report.contains("`deno install`"), "{report}");
+        assert!(report.contains("`deno task css`"), "{report}");
 
         let medium = features::Effects::combine(&features::features("medium"));
         let writes = files::file_writes(root, &[], &Default::default(), &medium).unwrap();
@@ -322,9 +323,10 @@ mod tests {
                 .file_contents(Path::new("static/tailwind-sources/site.css"))
                 .is_none()
         );
+        assert!(writes.file_contents(Path::new("justfile")).is_none());
         let report = next_steps(root, &medium);
-        assert!(!report.contains("`just setup`"), "{report}");
-        assert!(!report.contains("`just css`"), "{report}");
+        assert!(!report.contains("`deno install`"), "{report}");
+        assert!(!report.contains("`deno task css`"), "{report}");
     }
 
     #[test]

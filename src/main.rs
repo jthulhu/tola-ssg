@@ -16,6 +16,7 @@ mod help;
 mod i18n;
 mod sys;
 mod terminal;
+mod tree;
 mod writes;
 
 fn main() -> std::process::ExitCode {

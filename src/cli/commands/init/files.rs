@@ -29,6 +29,10 @@ const SITE_DIRECTORIES: &[&str] = &[
     "site",
 ];
 
+/// The starter page every scaffold publishes at the site root.
+const STARTER_PAGE_PATH: &str = "content/index.typ";
+const STARTER_PAGE_SOURCE: &str = include_str!("templates/index-page.typ");
+
 /// Every file and directory `tola init` creates at `root`.
 pub(super) fn file_writes(
     root: &Path,
@@ -54,6 +58,7 @@ pub(super) fn file_writes(
     )?;
     writes.create_file(program::SELECTION_PATH, program::SELECTION_SOURCE)?;
     writes.create_file(program::SEO_PATH, program::seo_source(&effects.seo))?;
+    writes.create_file(STARTER_PAGE_PATH, STARTER_PAGE_SOURCE)?;
     for (path, contents) in &effects.files {
         let contents = if *path == "static/tailwind-sources/site.css" {
             contents.replacen(
@@ -173,10 +178,14 @@ mod tests {
     /// needs both an origin and a title to be worth declaring.
     fn scaffold_selection_with_social_image(root: &Path, set: &FeatureSet, image: &str) {
         scaffold_selection_with_origin(root, set);
-        let configuration = std::fs::read_to_string(root.join("tola.toml")).unwrap();
+        let seo = std::fs::read_to_string(root.join(program::SEO_PATH)).unwrap();
+        let image = serde_json::to_string(image).unwrap();
         std::fs::write(
-            root.join("tola.toml"),
-            format!("{configuration}\n[site.extra]\nsocial-image = \"{image}\"\n"),
+            root.join(program::SEO_PATH),
+            seo.replace(
+                "#let social-image = \"\"",
+                &format!("#let social-image = {image}"),
+            ),
         )
         .unwrap();
     }
@@ -248,6 +257,25 @@ mod tests {
                 .unwrap()
                 .contains("Custom error page from the site.")
         );
+    }
+
+    #[test]
+    fn starter_page_publishes_at_the_site_root() {
+        let directory = tempfile::tempdir().unwrap();
+        scaffold(directory.path());
+        let build = build_generated_site(directory.path());
+        let html = std::str::from_utf8(built_output(&build, "index.html")).unwrap();
+
+        assert!(html.contains("<title>Welcome</title>"), "{html}");
+        assert!(
+            html.contains("content=\"A starter page for a site built with Tola\""),
+            "{html}"
+        );
+        assert!(
+            html.contains("<h1>Welcome</h1>"),
+            "the declared title is the page's first heading: {html}"
+        );
+        assert!(html.contains("href=\"#start-here\""), "{html}");
     }
 
     #[test]
@@ -367,7 +395,7 @@ Draft body."#,
                 .into_iter()
                 .map(|page| page.output.as_str())
                 .collect::<Vec<_>>(),
-            ["404.html"]
+            ["index.html", "404.html"]
         );
 
         std::fs::write(
@@ -604,49 +632,46 @@ Draft body."#
             vec![Feature::TwitterCard],
             vec![Feature::OpenGraph, Feature::TwitterCard],
         ] {
-            let directory = tempfile::tempdir().unwrap();
-            let root = directory.path();
             let selected = FeatureSet::new(features);
-            scaffold_selection_with_social_image(root, &selected, "https://example.com/card.png");
-            std::fs::write(root.join("content/index.typ"), "= Welcome\n").unwrap();
+            for image in ["https://example.com/card.png", "/card.png"] {
+                let directory = tempfile::tempdir().unwrap();
+                let root = directory.path();
+                scaffold_selection_with_social_image(root, &selected, image);
+                std::fs::write(root.join("content/index.typ"), "= Welcome\n").unwrap();
 
-            let build = build_generated_site(root);
-            let html = std::str::from_utf8(built_output(&build, "index.html")).unwrap();
-            let not_found = std::str::from_utf8(built_output(&build, "404.html")).unwrap();
-            for (feature, attribute) in [
-                (Feature::OpenGraph, r#"property="og:image""#),
-                (Feature::TwitterCard, r#"name="twitter:image""#),
-            ] {
-                assert_eq!(
-                    html.matches(attribute).count(),
-                    usize::from(selected.contains(feature)),
-                    "{html}"
-                );
-                if selected.contains(feature) {
-                    assert!(html.contains("https://example.com/card.png"), "{html}");
+                let build = build_generated_site(root);
+                let html = std::str::from_utf8(built_output(&build, "index.html")).unwrap();
+                let not_found = std::str::from_utf8(built_output(&build, "404.html")).unwrap();
+                for (feature, attribute) in [
+                    (Feature::OpenGraph, r#"property="og:image""#),
+                    (Feature::TwitterCard, r#"name="twitter:image""#),
+                ] {
+                    assert_eq!(
+                        html.matches(attribute).count(),
+                        usize::from(selected.contains(feature)),
+                        "{html}"
+                    );
+                    if selected.contains(feature) {
+                        assert!(html.contains("https://example.com/card.png"), "{html}");
+                    }
+                    assert!(!not_found.contains(attribute), "{not_found}");
                 }
-                assert!(!not_found.contains(attribute), "{not_found}");
             }
         }
     }
 
     #[test]
     fn absent_social_image_omits_cards() {
-        for image in [None, Some("")] {
-            let directory = tempfile::tempdir().unwrap();
-            let root = directory.path();
-            let selected = FeatureSet::new([Feature::OpenGraph, Feature::TwitterCard]);
-            match image {
-                Some(image) => scaffold_selection_with_social_image(root, &selected, image),
-                None => scaffold_selection(root, &selected),
-            }
-            std::fs::write(root.join("content/index.typ"), "= Welcome\n").unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let selected = FeatureSet::new([Feature::OpenGraph, Feature::TwitterCard]);
+        scaffold_selection_with_origin(root, &selected);
+        std::fs::write(root.join("content/index.typ"), "= Welcome\n").unwrap();
 
-            let build = build_generated_site(root);
-            let html = std::str::from_utf8(built_output(&build, "index.html")).unwrap();
-            assert!(!html.contains("og:image"), "{image:?}: {html}");
-            assert!(!html.contains("twitter:image"), "{image:?}: {html}");
-        }
+        let build = build_generated_site(root);
+        let html = std::str::from_utf8(built_output(&build, "index.html")).unwrap();
+        assert!(!html.contains("og:image"), "{html}");
+        assert!(!html.contains("twitter:image"), "{html}");
     }
 
     #[test]

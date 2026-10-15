@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::writes::FileWrites;
 use tola_build::config::SiteConfigSchema;
 use tola_build::config::section::build::hooks::{
     BeforeBuildHookConfig, CommandOutput, HooksConfig, OutputCommandConfig,
@@ -11,17 +12,12 @@ use tola_build::config::section::{
     SiteSectionConfig, TypstSectionConfig, VendorConfig,
 };
 
-use crate::writes::FileWrites;
-
 use super::features::{Effects, Hook, HookStage};
 
 pub(super) const CONFIG_PATH: &str = "tola.toml";
 
 /// The configuration the scaffold's effects require: default site settings, the browser-delivered
 /// asset subtree mapped, and vendoring pointed at `vendor`.
-///
-/// A Tailwind build's generated stylesheet publishes through an exact `files` entry, which owns
-/// its URL instead of the tree's path.
 pub(super) fn schema(effects: &Effects) -> SiteConfigSchema {
     // Only the browser-delivered subtree is mapped: compiler fonts and processing inputs
     // elsewhere under `static` stay unpublished unless another producer selects them.
@@ -257,7 +253,7 @@ mod tests {
 
         let hook = &schema.build.hooks.before_build[0];
         assert_eq!(hook.name, "tailwind");
-        assert_eq!(hook.command, ["just", "css"]);
+        assert_eq!(hook.command, ["deno", "task", "css"]);
         assert_eq!(
             hook.generates,
             [PathBuf::from("static/web-assets/tailwind-output/site.css")]
