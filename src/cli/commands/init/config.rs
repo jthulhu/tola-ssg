@@ -212,22 +212,39 @@ mod tests {
                     "{name} must omit {omitted}:\n{config}"
                 );
             }
-            for pointed in ["[site]", "[build]", "[assets]", "[vendor]"] {
-                let pointer = format!("# tola help \"{pointed}\"");
-                assert!(
-                    config.contains(&pointer),
-                    "{name} must point at {pointer}:\n{config}"
-                );
-            }
-            assert!(
-                config.contains("# tola help \"[build.hooks]\""),
-                "{name} must point at the hook reference:\n{config}"
-            );
             assert_eq!(
                 config.contains("[[build.hooks.before-build]]"),
                 name == "rich",
                 "{name} hook presence:\n{config}"
             );
+        }
+    }
+
+    #[test]
+    fn starter_help_targets_resolve() {
+        use crate::help::pages::{CrossRefs, page_of, request};
+        use crate::i18n::HelpLanguage;
+
+        let effects = features::Effects::combine(&features::features("minimal"));
+        let config = config_file(&schema(&effects));
+        let commands = config
+            .lines()
+            .filter_map(|line| line.strip_prefix("# tola help "))
+            .collect::<Vec<_>>();
+        assert!(!commands.is_empty());
+        for command in commands {
+            // The scaffold writes a shell line, so each argument carries the quoting a shell strips.
+            let arguments = command
+                .split_whitespace()
+                .map(|argument| argument.trim_matches('"').to_owned())
+                .collect::<Vec<_>>();
+            let target = request(&arguments).unwrap();
+            page_of(
+                target.page().unwrap(),
+                HelpLanguage::English,
+                CrossRefs::Emit,
+            )
+            .unwrap();
         }
     }
 
