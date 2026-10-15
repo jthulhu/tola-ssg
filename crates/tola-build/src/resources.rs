@@ -40,6 +40,7 @@ pub struct BuildResources {
     network: NetworkAccess,
     files: Arc<tola_typst::SharedFileCache>,
     include_system_fonts: bool,
+    font_directories: Vec<PathBuf>,
     downloads: Arc<Mutex<Option<Arc<HttpDownloads>>>>,
     pixels: Arc<PixelCache>,
 }
@@ -142,6 +143,17 @@ impl BuildResources {
         self.include_system_fonts && self.scope != InputScope::Pure
     }
 
+    /// Add the host font directories this invocation names, ahead of the site's configured ones.
+    pub fn with_font_directories(mut self, directories: Vec<PathBuf>) -> Self {
+        self.font_directories = directories;
+        self
+    }
+
+    /// The host font directories this invocation names, in search order.
+    pub fn font_directories(&self) -> &[PathBuf] {
+        &self.font_directories
+    }
+
     /// Download at most `limit` bytes using the host's network policy and shared HTTP pool.
     ///
     /// A denied policy opens no connection. Cancellation interrupts an in-flight request.
@@ -222,6 +234,7 @@ impl Default for BuildResources {
             network: NetworkAccess::Allowed,
             files: Arc::new(tola_typst::SharedFileCache::new()),
             include_system_fonts: true,
+            font_directories: Vec::new(),
             downloads: Arc::new(Mutex::new(None)),
             pixels: Arc::new(PixelCache::default()),
         }
