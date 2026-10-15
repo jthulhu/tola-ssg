@@ -1,8 +1,15 @@
 // `collection` imports this file inside each operation, so these helpers never become exports.
 
+#let require(condition, message: none) = {
+  if not condition {
+    import "@tola/host:0.0.0": report-error
+    report-error(message)
+  }
+}
+
 #let memberships-of(member, keys, operation) = {
   let memberships = keys(member)
-  assert(type(memberships) == array, message: operation + " `keys` must return an array")
+  require(type(memberships) == array, message: operation + " `keys` must return an array; found `" + repr(type(memberships)) + "`")
   memberships
 }
 
@@ -11,12 +18,12 @@
 }
 
 #let unique-keys(members, key, operation) = {
-  assert(type(members) == array, message: operation + " expects an array")
+  require(type(members) == array, message: operation + " `members` must be an array; found `" + repr(type(members)) + "`")
   let member-keys = members.map(key)
   let seen = ()
   for member-key in member-keys {
     if member-key in seen {
-      panic(duplicate-key-message(operation, member-key))
+      require(false, message: duplicate-key-message(operation, member-key))
     }
     seen.push(member-key)
   }
@@ -25,7 +32,7 @@
 
 #let hierarchy-keys(members, key, operation) = {
   let member-keys = unique-keys(members, key, operation)
-  assert(none not in member-keys, message: operation + " hierarchy keys cannot be `none`")
+  require(none not in member-keys, message: operation + " hierarchy keys cannot be `none`")
   member-keys
 }
 
@@ -36,7 +43,7 @@
 #let parent-key(origin, parent, operation) = {
   let ancestor = parent(origin)
   if ancestor == origin {
-    panic(operation + " parent chain contains a cycle at key `" + repr(origin) + "`")
+    require(false, message: operation + " parent chain contains a cycle at key `" + repr(origin) + "`")
   }
   ancestor
 }
@@ -46,7 +53,7 @@
   let ancestor = parent-key(origin, parent, operation)
   while ancestor != none {
     if ancestor == origin or ancestor in chain {
-      panic(operation + " parent chain contains a cycle at key `" + repr(ancestor) + "`")
+      require(false, message: operation + " parent chain contains a cycle at key `" + repr(ancestor) + "`")
     }
     chain.push(ancestor)
     ancestor = parent-key(ancestor, parent, operation)

@@ -888,28 +888,19 @@ fn declaration_warnings(
     if sources.is_empty() {
         return Arc::default();
     }
-    let count = sources.len();
-    let (noun, verb) = if count == 1 {
-        ("source", "declares")
-    } else {
-        ("sources", "declare")
-    };
-    let consequence = if count == 1 {
-        "the source has no metadata"
-    } else {
-        "those sources have no metadata"
-    };
     let warning = crate::diagnostic::Diagnostic::new(
         crate::codes::source::DECLARATION_DEPRECATED,
         crate::diagnostic::Severity::Warning,
-        format!("{count} {noun} {verb} metadata with the `<tola-meta>` label"),
+        "the `<tola-meta>` label does not declare source metadata",
     )
-    .with_help("Import `tola-meta` with `#import \"@tola/source:0.0.0\": tola-meta`")
+    .with_help(
+        "Import `tola-meta` from `@tola/source:0.0.0` and replace \
+         `metadata(...) <tola-meta>` with `tola-meta(...)`",
+    )
     .with_note(crate::diagnostic::bounded_listing(
         &sources,
         ("file", "files"),
-    ))
-    .with_note(consequence);
+    ));
     Arc::from([warning])
 }
 
@@ -2197,19 +2188,8 @@ Child body"#,
     }
 
     #[test]
-    fn label_warning_counts_declaring_sources() {
-        for (names, message, note) in [
-            (
-                &["alpha", "beta"][..],
-                "2 sources declare metadata with the `<tola-meta>` label",
-                "`content/alpha.typ` and `content/beta.typ`",
-            ),
-            (
-                &["a", "b", "c", "d", "e"][..],
-                "5 sources declare metadata with the `<tola-meta>` label",
-                "`content/a.typ`, `content/b.typ`, `content/c.typ` and 2 more files",
-            ),
-        ] {
+    fn label_warning_identifies_sources() {
+        for names in [&["alpha", "beta"][..], &["a", "b", "c", "d", "e"][..]] {
             let sources = names
                 .iter()
                 .map(|name| {
@@ -2809,11 +2789,11 @@ Child body"#,
         .unwrap();
         fs::write(
             &reader,
-            r#"#import "@tola/address:0.0.0": route
+            r#"#import "@tola/address:0.0.0": join-route
 #import "@tola/source:0.0.0": current-source
 #let source = current-source()
 #import "@tola/source:0.0.0": tola-meta
-#tola-meta((filename: source.filename, permalink: route(source.route-segments)))
+#tola-meta((filename: source.filename, permalink: join-route(source.route-segments)))
 Reader body"#,
         )
         .unwrap();

@@ -392,7 +392,7 @@ impl SeoValue {
     /// travel together: a feature that asks for the value gets the import without naming it.
     pub(super) fn imports(self) -> &'static [(&'static str, &'static [&'static str])] {
         match self {
-            Self::Url => &[("@tola/address:0.0.0", &["output-to-url"])],
+            Self::Url => &[("@tola/address:0.0.0", &["output-url"])],
             Self::Image => &[],
             Self::Title | Self::Description => &[("@tola/web:0.0.0", &["plain-text"])],
         }
@@ -402,7 +402,7 @@ impl SeoValue {
     pub(super) fn bindings(self) -> &'static str {
         match self {
             Self::Url => {
-                "    let url = if site.origin == none { none } else { output-to-url(page.output, origin: site.origin) }\n"
+                "    let url = if site.origin == none { none } else { output-url(page.output, origin: site.origin) }\n"
             }
             Self::Image => {
                 "    let social = site.extra.at(\"social-image\", default: \"\")\n    \
@@ -713,8 +713,8 @@ const FEED_OUTPUT: SeoOutput = SeoOutput {
       .map(page => (
         id: page.source.meta.id,
         target: page.output,
-        published: page.source.meta.published,
-        updated: page.source.meta.updated,
+        published: page.source.meta.published.rfc3339,
+        updated: if type(page.source.meta.updated) == dictionary { page.source.meta.updated.rfc3339 } else { page.source.meta.updated },
         summary: page.source.meta.feed-summary,
         content: if page.source.meta.feed-content == none {
           (document: page.output)
@@ -753,7 +753,10 @@ const SITEMAP_OUTPUT: SeoOutput = SeoOutput {
     output: output,
     targets: pages
       .filter(page => page.source.meta.sitemap)
-      .map(page => (target: page.output, lastmod: page.source.meta.updated)),
+      .map(page => (
+        target: page.output,
+        lastmod: if type(page.source.meta.updated) == dictionary { page.source.meta.updated.rfc3339 } else { page.source.meta.updated },
+      )),
   )
 }"#,
 };

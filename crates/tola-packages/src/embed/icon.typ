@@ -9,10 +9,11 @@
 /// `tola help "[icons]"` documents each source type, and `tola inspect icons` lists the configured
 /// namespaces and, in one you name, its icon names.
 ///
-/// An icon is colored by its own SVG. Artwork drawn with `currentColor` follows the `color` of the
-/// page around it, so a theme or a CSS class recolors it; artwork with fixed fills and strokes keeps
-/// its own colors. A collection can already be drawn that way: every `lucide` icon is painted with
-/// `currentColor`, so it takes on the page's text color as it is.
+/// An icon's color comes from its own SVG content. Artwork drawn with `currentColor` follows the
+/// `color` of the page around it, so a theme or a CSS class recolors it; artwork with fixed fills
+/// and strokes keeps its own colors. Prefer icons drawn that way: every `lucide` icon is painted
+/// with `currentColor`, so it takes on the page's text color as it is.
+/// The id is checked when `icon()` is called, including when its returned content is unused.
 ///
 /// Example - render a configured icon in an HTML document:
 ///
@@ -57,13 +58,16 @@
 ///   `role`, and `focusable`, and naming any of them in `attrs` is an error. `class` and
 ///   `style` extend the values the SVG already carries.
 /// -> content
-#let icon(id, label: none, attrs: (:)) = context {
-  import "@tola/host:0.0.0": icon as render
-  // The native reads the element's location, which only a call in context supplies.
-  if target() != "html" {
-    panic("icon() needs an HTML document")
+#let icon(id, label: none, attrs: (:)) = {
+  import "@tola/host:0.0.0": icon as render, icon-bytes
+  let svg = icon-bytes(id)
+  context {
+    // The native reads the element's location, which only a call in context supplies.
+    if target() != "html" {
+      panic("icon() needs an HTML document")
+    }
+    render(svg, label: label, attrs: attrs)
   }
-  render(id, label: label, attrs: attrs)
 }
 
 /// The normalized SVG bytes of a configured icon, ready for `asset()` or Typst's `image(bytes)`.

@@ -33,6 +33,25 @@ pub(crate) fn read_package(pkg: &PackageSpec, path: &str) -> Option<Vec<u8>> {
         .map(|contents| contents.into_owned().into_bytes())
 }
 
+/// The target one icon package path answers a read with, from the collections a host bound: a
+/// configured icon's normalized SVG, or the tracked name list of one configured collection.
+///
+/// Any other path, and a name the collections do not carry, is missing, which leaves the miss to
+/// the read that asked for it.
+pub(crate) fn icon_file_target(
+    collections: &tola_icons::IconCollections,
+    package: &PackageSpec,
+    path: &Path,
+) -> tola_typst::FileTarget {
+    tola_packages::icon_file_bytes(collections, package, path)
+        .map(|bytes| tola_typst::FileTarget::Bytes(bytes.into()))
+        .or_else(|| {
+            tola_packages::icon_collection_names_bytes(collections, package, path)
+                .map(|bytes| tola_typst::FileTarget::Bytes(bytes.into()))
+        })
+        .unwrap_or(tola_typst::FileTarget::Missing)
+}
+
 /// Whether this package path's bytes are fixed for the process.
 ///
 /// Only Tola's own package files, immutable observation descriptors, and published icon request
@@ -91,11 +110,7 @@ mod tests {
             };
             let path = Path::new(id.vpath().get_with_slash().trim_start_matches('/'));
             if tola_packages::is_icon_file(package, path) {
-                return Some(
-                    tola_packages::icon_file_bytes(&self.0, package, path)
-                        .map(|bytes| tola_typst::FileTarget::Bytes(bytes.into()))
-                        .unwrap_or(tola_typst::FileTarget::Missing),
-                );
+                return Some(icon_file_target(&self.0, package, path));
             }
             read_package(package, id.vpath().get_with_slash())
                 .map(|bytes| tola_typst::FileTarget::Bytes(bytes.into()))
@@ -911,11 +926,11 @@ path = "icons/brand"
     #[test]
     fn directory_route_keeps_decoded_segments() {
         let (_directory, compilation) = compiled_from_default_config(
-            r#"#import "@tola/address:0.0.0": route
-#assert.eq(route(()), "/")
-#assert.eq(route(("Posts", "Deep")), "/Posts/Deep/")
-#assert.eq(route(("Café", "Leaf")), "/Café/Leaf/")
-#let route = route(("guide",))
+            r#"#import "@tola/address:0.0.0": join-route
+#assert.eq(join-route(()), "/")
+#assert.eq(join-route(("Posts", "Deep")), "/Posts/Deep/")
+#assert.eq(join-route(("Café", "Leaf")), "/Café/Leaf/")
+#let route = join-route(("guide",))
 #document(route.slice(1) + "index.html")[Guide]"#,
         );
         assert!(
@@ -928,13 +943,13 @@ path = "icons/brand"
     #[test]
     fn output_path_maps_each_route() {
         let (_directory, compilation) = compiled_from_default_config(
-            r#"#import "@tola/address:0.0.0": route-to-output
-#assert.eq(route-to-output("/"), "index.html")
-#assert.eq(route-to-output("/guide/"), "guide/index.html")
-#assert.eq(route-to-output("/guide"), "guide")
-#assert.eq(route-to-output("/manual.pdf"), "manual.pdf")
-#assert.eq(route-to-output("/404.html"), "404.html")
-#document(route-to-output("/about.html"))[About]"#,
+            r#"#import "@tola/address:0.0.0": output-of
+#assert.eq(output-of("/"), "index.html")
+#assert.eq(output-of("/guide/"), "guide/index.html")
+#assert.eq(output-of("/guide"), "guide")
+#assert.eq(output-of("/manual.pdf"), "manual.pdf")
+#assert.eq(output-of("/404.html"), "404.html")
+#document(output-of("/about.html"))[About]"#,
         );
         assert!(
             compilation
@@ -946,11 +961,11 @@ path = "icons/brand"
     #[test]
     fn output_route_inverse_maps_index() {
         assert_default_compiles(
-            r#"#import "@tola/address:0.0.0": route-to-output, output-to-route
-#assert.eq(output-to-route("guide/index.html"), "/guide/")
-#assert.eq(output-to-route("404.html"), "/404.html")
-#assert.eq(output-to-route("about"), "/about")
-#assert.eq(route-to-output(output-to-route("guide/index.html")), "guide/index.html")
+            r#"#import "@tola/address:0.0.0": output-of, route-of
+#assert.eq(route-of("guide/index.html"), "/guide/")
+#assert.eq(route-of("404.html"), "/404.html")
+#assert.eq(route-of("about"), "/about")
+#assert.eq(output-of(route-of("guide/index.html")), "guide/index.html")
 #document("index.html")[Routes]"#,
         );
     }
@@ -958,12 +973,12 @@ path = "icons/brand"
     #[test]
     fn output_url_renders_mount_and_origin() {
         assert_default_compiles(
-            r#"#import "@tola/address:0.0.0": output-to-url
-#assert.eq(output-to-url("guide/index.html"), "/guide/")
-#assert.eq(output-to-url("Hello World/index.html", base-path: "/docs/"), "/docs/Hello%20World/")
-#assert.eq(output-to-url("404.html", base-path: "/docs/"), "/docs/404.html")
+            r#"#import "@tola/address:0.0.0": output-url
+#assert.eq(output-url("guide/index.html"), "/guide/")
+#assert.eq(output-url("Hello World/index.html", base-path: "/docs/"), "/docs/Hello%20World/")
+#assert.eq(output-url("404.html", base-path: "/docs/"), "/docs/404.html")
 #assert.eq(
-  output-to-url("guide/index.html", base-path: "/docs/", origin: "https://example.test"),
+  output-url("guide/index.html", base-path: "/docs/", origin: "https://example.test"),
   "https://example.test/docs/guide/",
 )
 #document("index.html")[URLs]"#,
@@ -974,8 +989,8 @@ path = "icons/brand"
     fn output_url_refuses_origin_paths() {
         for origin in ["https://example.test/docs/", "https://example.test/."] {
             let source = format!(
-                "#import \"@tola/address:0.0.0\": output-to-url\n\
-                 #let url = output-to-url(\"index.html\", origin: {origin:?})\n\
+                "#import \"@tola/address:0.0.0\": output-url\n\
+                 #let url = output-url(\"index.html\", origin: {origin:?})\n\
                  #document(\"index.html\")[Body]"
             );
             let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
@@ -990,6 +1005,146 @@ path = "icons/brand"
     }
 
     #[test]
+    fn address_failures_name_the_argument() {
+        for (expression, parameter, reason) in [
+            (r#"output-url("/index.html")"#, "output", "relative"),
+            (
+                r#"output-url("index.html", base-path: "/docs")"#,
+                "base-path",
+                "end with",
+            ),
+            (
+                r#"output-url("index.html", base-path: "/docs//guide/")"#,
+                "base-path",
+                "empty segment",
+            ),
+            (
+                r#"output-url("index.html", base-path: "/_tola/")"#,
+                "base-path",
+                "namespace",
+            ),
+            (
+                r#"output-url("index.html", origin: "ftp://example.test")"#,
+                "origin",
+                "http",
+            ),
+            (
+                r#"route-url("/guide/", origin: "ftp://example.test")"#,
+                "origin",
+                "http",
+            ),
+            (r#"route-url("relative")"#, "route", "start with"),
+        ] {
+            let source = format!(
+                "#import \"@tola/address:0.0.0\": output-url, route-url\n\
+                 #let url = {expression}\n\
+                 #document(\"index.html\")[]"
+            );
+            let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
+            let failure =
+                tola_typst::compile_bundle_world(&world, &Default::default()).unwrap_err();
+            let error = failure.diagnostics().unwrap().errors().next().unwrap();
+            assert_eq!(error.location.path.as_deref(), Some("main.typ"));
+            assert_eq!(error.location.line, Some(2));
+            assert!(
+                error.message.contains(&format!("`{parameter}`")),
+                "{error:?}"
+            );
+            assert!(error.message.contains(reason), "{error:?}");
+            assert!(!error.message.contains("site.base-path"), "{error:?}");
+        }
+    }
+
+    #[test]
+    fn direct_address_spans_keep_the_argument() {
+        for (function, argument) in [
+            ("output-of", "relative"),
+            ("route-of", "/index.html"),
+            ("decode-url-path", "/%zz"),
+        ] {
+            let source = format!(
+                "#import \"@tola/address:0.0.0\": {function}\n\
+                 #let url = {function}({argument:?})\n\
+                 #document(\"index.html\")[]"
+            );
+            let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
+            let failure =
+                tola_typst::compile_bundle_world(&world, &Default::default()).unwrap_err();
+            let error = failure.diagnostics().unwrap().errors().next().unwrap();
+            assert_eq!(error.location.path.as_deref(), Some("main.typ"));
+            let range = error.location.range.unwrap();
+            let line = source.lines().nth(range.start.line).unwrap();
+            assert_eq!(range.start.line, range.end.line);
+            assert_eq!(
+                line[range.start.character..range.end.character].trim_matches('"'),
+                argument,
+                "{error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn address_helpers_keep_source_locations() {
+        for (helper, is_typst_error) in [
+            (
+                r#"#let url() = address("/guide/", base-path: "/docs")"#,
+                false,
+            ),
+            (r#"#let url() = address(panic("route unavailable"))"#, true),
+        ] {
+            let source = format!(
+                "#import \"@tola/address:0.0.0\": route-url as address\n\
+                 {helper}\n\
+                 #let selected = url()\n\
+                 #document(\"index.html\")[]"
+            );
+            let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
+            let failure =
+                tola_typst::compile_bundle_world(&world, &Default::default()).unwrap_err();
+            let error = failure.diagnostics().unwrap().errors().next().unwrap();
+            assert_eq!(error.location.path.as_deref(), Some("main.typ"));
+            assert_eq!(error.location.line, Some(2));
+            assert_eq!(
+                error.origin == tola_typst::DiagnosticOrigin::Typst,
+                is_typst_error
+            );
+            assert!(
+                error.traces.iter().any(|trace| {
+                    trace.location.path.as_deref() == Some("main.typ")
+                        && trace.location.line == Some(3)
+                }),
+                "{error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn route_url_uses_output_address() {
+        let config =
+            crate::config::tests::OwnedSiteConfig::new("[site]\nbase-path = \"/mounted/\"\n");
+        let library = SiteBindings::from_config(&config.config, Default::default())
+            .library(SourceRecords::default());
+        let (_directory, world) = world_with_icons(
+            r#"#import "@tola/address:0.0.0": route-url, output-url, output-of, decode-url-path
+#assert.eq(route-url("/guide/index.html"), "/mounted/guide/")
+#assert.eq(route-url("/manual.pdf", base-path: "/"), "/manual.pdf")
+#assert.eq(
+  route-url("/中文/100%/#part/", base-path: "/docs/", origin: "https://example.test"),
+  "https://example.test/docs/%E4%B8%AD%E6%96%87/100%25/%23part/",
+)
+#assert.eq(route-url(decode-url-path("/caf%C3%A9/index.html")), "/mounted/caf%C3%A9/")
+#for route in ("/", "/guide", "/guide/", "/guide/index.html", "/100%20.html") {
+  assert.eq(route-url(route), output-url(output-of(route)))
+}
+#document("index.html")[Routes]"#,
+            &library,
+            Arc::default(),
+        );
+        tola_typst::compile_bundle_world(&world, &Default::default())
+            .expect("routes use their output's canonical address");
+    }
+
+    #[test]
     fn decode_path_decodes_once() {
         assert_default_compiles(
             r#"#import "@tola/address:0.0.0": decode-url-path
@@ -997,6 +1152,26 @@ path = "icons/brand"
 #assert.eq(decode-url-path("/Hello%20World/"), "/Hello World/")
 #assert.eq(decode-url-path("/plain/"), "/plain/")
 #document("index.html")[Decoded]"#,
+        );
+    }
+
+    #[test]
+    fn url_path_schema_decodes_once() {
+        assert_default_compiles(
+            r#"#import "@tola/schema:0.0.0": parse, try-parse, schema, url-path
+#import "@tola/address:0.0.0": route-url
+#let route = parse("/文档/Hello World/a%2523b/", url-path)
+#assert.eq(route, "/文档/Hello World/a%23b/")
+#assert.eq(route-url(route, base-path: "/docs/"), "/docs/%E6%96%87%E6%A1%A3/Hello%20World/a%2523b/")
+#assert.eq(parse("/a%23b/", url-path), "/a#b/")
+#let page = schema((permalink: url-path))
+#for path in ("/bad%/", "/a%2Fb/", "/guide /") {
+  let rejected = try-parse((permalink: path), page)
+  assert.eq(rejected.ok, false)
+  assert.eq(rejected.issues.at(0).code, "schema.url-path")
+  assert.eq(rejected.issues.at(0).path, ("permalink",))
+}
+#document("index.html")[Paths]"#,
         );
     }
 
@@ -1014,12 +1189,13 @@ path = "icons/brand"
     #[test]
     fn address_conversion_reads_no_site_or_source() {
         let (_directory, compilation) = compiled_from_default_config(
-            r#"#import "@tola/address:0.0.0": route, route-to-output, output-to-route, output-to-url, decode-url-path
+            r#"#import "@tola/address:0.0.0": join-route, output-of, route-of, output-url, route-url, decode-url-path
 #let converted = (
-  route(("guide",)),
-  route-to-output("/guide/"),
-  output-to-route("guide/index.html"),
-  output-to-url("guide/index.html", base-path: "/"),
+  join-route(("guide",)),
+  output-of("/guide/"),
+  route-of("guide/index.html"),
+  output-url("guide/index.html", base-path: "/"),
+  route-url("/guide/index.html", base-path: "/"),
   decode-url-path("/caf%C3%A9/"),
 )
 #document("index.html")[#converted.len()]"#,
@@ -1755,9 +1931,9 @@ path = "icons/brand"
     fn all_sources_lists_every_source_in_order() {
         let sources = source_records(&["about.typ", "about/index.typ", "index.typ"]);
         let source = r#"
-#import "@tola/address:0.0.0": route
+#import "@tola/address:0.0.0": join-route
 #import "@tola/source:0.0.0": all-sources
-#assert.eq(all-sources().map(source => route(source.at("route-segments"))), ("/about/", "/about/", "/"))
+#assert.eq(all-sources().map(source => join-route(source.at("route-segments"))), ("/about/", "/about/", "/"))
 #let eager = all-sources().map(source => source.id).join(", ")
 #document("index.html")[#eager / #context all-sources().last().id]
 "#;
@@ -1959,12 +2135,12 @@ path = "icons/brand"
         fs::write(
             directory.path().join("content/document.typ"),
             r#"
-#import "@tola/address:0.0.0": route
+#import "@tola/address:0.0.0": join-route
 #import "@tola/document:0.0.0": current-document
 #import "@tola/source:0.0.0": current-source
 #let source = current-source()
 #assert.eq(source.path, "document.typ")
-#assert.eq(route(source.at("route-segments")), "/document/")
+#assert.eq(join-route(source.at("route-segments")), "/document/")
 #import "@tola/source:0.0.0": tola-meta
 #tola-meta((filename: source.filename))
 #context {
@@ -2026,6 +2202,126 @@ path = "icons/brand"
         let native = exported_html(&compilation, "/native.html");
         assert!(native.contains("Native title"), "{native}");
         assert!(native.contains("native.html"), "{native}");
+    }
+
+    #[test]
+    fn package_guards_locate_calls() {
+        for (package, expression, details) in [
+            ("collection", "pick(none, ())", ["`fields`", "none"]),
+            ("collection", "pick(auto, ())", ["`fields`", "auto"]),
+            ("collection", "index-by((1,))", ["`key`", "`int`"]),
+            (
+                "collection",
+                r#"index-by(("same", "same"))"#,
+                ["unique keys", "same"],
+            ),
+            (
+                "collection",
+                r#"group-by-keys(("tag",))"#,
+                ["`keys`", "`str`"],
+            ),
+            (
+                "collection",
+                r#"descendants(("a",), "root", key => if key == "a" { "b" } else { "a" })"#,
+                ["cycle", "a"],
+            ),
+            ("schema", "min-length(str, -1)", ["`minimum`", "`-1`"]),
+            ("schema", "schema(())", ["`fields`", "`array`"]),
+            ("schema", "check(int, none)", ["function", "none"]),
+            (
+                "schema",
+                "parse(1, check(int, _ => none))",
+                ["check callback", "none"],
+            ),
+            (
+                "schema",
+                "parse(1, convert(int, _ => 7))",
+                ["callback", "`7`"],
+            ),
+            (
+                "schema",
+                r#"issue("invalid", path: (-1,))"#,
+                ["`path`", "index 0"],
+            ),
+            ("source", "parse-sources(none, int)", ["`sources`", "none"]),
+            ("source", "parse-sources((7,), int)", ["index 0", "`7`"]),
+        ] {
+            let source = format!(
+                "#import \"@tola/{package}:0.0.0\": *\n\
+                 #let selected = {expression}\n\
+                 #document(\"index.html\")[]"
+            );
+            let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
+            let failure =
+                tola_typst::compile_bundle_world(&world, &Default::default()).unwrap_err();
+            let error = failure.diagnostics().unwrap().errors().next().unwrap();
+            assert_eq!(error.location.path.as_deref(), Some("main.typ"));
+            let range = error.location.range.unwrap();
+            assert_eq!((range.start.line, range.end.line), (1, 1), "{error:?}");
+            let line = source.lines().nth(1).unwrap();
+            assert_eq!(
+                &line[range.start.character..range.end.character],
+                expression,
+                "{error:?}"
+            );
+            assert!(matches!(
+                error.origin,
+                tola_typst::DiagnosticOrigin::Producer(_)
+            ));
+            for detail in details {
+                assert!(error.message.contains(detail), "{expression}: {error:?}");
+            }
+            assert!(!error.message.contains("assertion failed"), "{error:?}");
+            assert!(!error.message.contains("panicked"), "{error:?}");
+        }
+    }
+
+    #[test]
+    fn collection_keys_accept_types() {
+        assert_default_compiles(
+            r#"#import "@tola/collection:0.0.0": index-by, group-by, adjacent
+#assert.eq(index-by((1, 2), key: str), ("1": 1, "2": 2))
+#assert.eq(group-by((1, 2), key: str), ("1": (1,), "2": (2,)))
+#assert.eq(adjacent((1, 2), "1", key: str), (after: 2))
+#document("index.html")[]"#,
+        );
+    }
+
+    #[test]
+    fn package_callbacks_keep_panic_spans() {
+        for (package, expression) in [
+            ("collection", r#"index-by(("a",), key: fail)"#),
+            ("schema", "parse(1, map(int, fail))"),
+        ] {
+            let source = format!(
+                "#import \"@tola/{package}:0.0.0\": *\n\
+                 #let fail(value) = panic(\"callback unavailable\")\n\
+                 #let selected = {expression}\n\
+                 #document(\"index.html\")[]"
+            );
+            let (_directory, world) = world_from_default_config(&source, SourceRecords::default());
+            let failure =
+                tola_typst::compile_bundle_world(&world, &Default::default()).unwrap_err();
+            let error = failure.diagnostics().unwrap().errors().next().unwrap();
+            assert_eq!(error.location.path.as_deref(), Some("main.typ"));
+            let range = error.location.range.unwrap();
+            assert_eq!((range.start.line, range.end.line), (1, 1), "{error:?}");
+            let line = source.lines().nth(1).unwrap();
+            assert_eq!(
+                &line[range.start.character..range.end.character],
+                r#"panic("callback unavailable")"#,
+                "{error:?}"
+            );
+            assert_eq!(error.origin, tola_typst::DiagnosticOrigin::Typst);
+            assert!(error.message.contains("callback unavailable"), "{error:?}");
+            assert!(
+                error.traces.iter().any(|trace| {
+                    trace.location.path.as_deref() == Some("main.typ")
+                        && trace.location.line == Some(3)
+                }),
+                "{error:?}"
+            );
+        }
     }
 
     mod collection {
@@ -2422,13 +2718,20 @@ path = "icons/brand"
 
         #[test]
         fn declared_urls_resolve_under_mount() {
-            let site = site(
-                &[("assets/app.js", "/app.js")],
-                None,
-                "[site]\nbase-path = \"/blog/\"",
-            );
-
-            assert_eq!(site.resolve("/app.js").unwrap(), "/blog/app.js");
+            for (declared, expected) in [
+                ("/app.js", "/blog/app.js"),
+                ("/assets/index.html", "/blog/assets/index.html"),
+                ("/a%23b.css", "/blog/a%23b.css"),
+                ("/100%25.css", "/blog/100%25.css"),
+                ("/café.css", "/blog/caf%C3%A9.css"),
+            ] {
+                let site = site(
+                    &[("assets/app.js", declared)],
+                    None,
+                    "[site]\nbase-path = \"/blog/\"",
+                );
+                assert_eq!(site.resolve(declared).unwrap(), expected);
+            }
         }
 
         #[test]
@@ -2506,6 +2809,8 @@ path = "icons/brand"
 
             assert!(error.contains("/missing.js"), "{error}");
             assert!(error.contains("assets.files"), "{error}");
+            assert!(error.contains("site configuration"), "{error}");
+            assert!(!error.contains("tola.toml"), "{error}");
             assert!(
                 !error.contains("/app.js"),
                 "an undefined URL must not resolve to another declaration: {error}"
@@ -2562,7 +2867,7 @@ path = "icons/brand"
     /// The `@tola/document` queries inside a real compilation.
     mod references {
         use super::*;
-        use typst::foundations::{Content, Value};
+        use typst::foundations::{Content, Label, Value};
         use typst::introspection::Location;
 
         struct QuerySite {
@@ -3345,25 +3650,63 @@ path = "icons/brand"
             );
         }
 
+        /// A show rule decides which link reaches the output, and that link is what is reported.
         #[test]
-        fn ref_reports_the_label_it_names() {
+        fn show_rules_decide_which_reference_is_reported() {
             let site = QuerySite::new("/");
             let compiled = site.compile(
                 r#"
 #import "@tola/document:0.0.0": references
 #document("from.html")[
-  #show ref: reference => [
-    #link("/to/?via=ref#one")[First]
-    #link("/to/?via=ref#two")[Second]
-  ]
-  #html.main[@original] <page>
+  #show link.where(dest: "/original/"): _ => link("/generated/")[Generated]
+  #html.main[#link("/original/")[Original]] <page>
   #context [#metadata(references(from-within: <page>)) <outgoing>]
 ]
 #document("original.html")[
   = Original <original>
   #context [#metadata(references(to: auto)) <incoming>]
 ]
-#document("to/index.html")[To]
+#document("generated/index.html")[
+  Generated
+  #context [#metadata(references(to: auto)) <incoming>]
+]
+"#,
+                true,
+            );
+            let outgoing = records(&compiled, "from.html", "outgoing");
+            assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+            assert_eq!(
+                outgoing[0].get("destination").unwrap(),
+                &"/generated/".into_value()
+            );
+            assert_eq!(
+                target(&outgoing[0]).get("output").unwrap(),
+                &"generated/index.html".into_value()
+            );
+            assert!(records(&compiled, "original.html", "incoming").is_empty());
+            assert_eq!(
+                records(&compiled, "generated/index.html", "incoming").len(),
+                1
+            );
+        }
+
+        /// A link written inside another link's body belongs to the outer one.
+        #[test]
+        fn nested_links_belong_to_the_outermost_reference() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#set heading(numbering: "1.")
+#document("from.html")[
+  #html.main[#link("/original/")[Original @generated #link("/generated/")[Inner]]] <page>
+  #context [#metadata(references(from-within: <page>)) <outgoing>]
+]
+#document("original/index.html")[= Original <original>]
+#document("generated/index.html")[
+  = Generated <generated>
+  #context [#metadata(references(to: auto, from-within: <page>)) <incoming>]
+]
 "#,
                 true,
             );
@@ -3371,31 +3714,29 @@ path = "icons/brand"
             assert_eq!(outgoing.len(), 1, "{outgoing:?}");
             assert_eq!(
                 target(&outgoing[0]).get("output").unwrap(),
-                &"original.html".into_value(),
-                "{outgoing:?}"
+                &"original/index.html".into_value()
             );
-            assert_eq!(
-                outgoing[0].get("resolution").unwrap(),
-                &"found".into_value(),
-                "{outgoing:?}"
-            );
-            assert_eq!(records(&compiled, "original.html", "incoming").len(), 1);
+            assert!(records(&compiled, "generated/index.html", "incoming").is_empty());
         }
 
+        /// A reference a show rule replaces is reported as what replaced it.
         #[test]
-        fn nested_relations_belong_to_outermost_reference() {
-            for body in [
-                r#"
+        fn show_rewritten_references_report_the_replacement() {
+            for (body, reported) in [
+                (
+                    r#"
   #show ref.where(target: <original>): _ => ref(<generated>)
   #html.main[@original] <page>
 "#,
-                r#"
+                    1,
+                ),
+                (
+                    r#"
   #show link.where(dest: "/original/"): _ => [@generated #link("/generated/")[Generated]]
   #html.main[#link("/original/")[Original]] <page>
 "#,
-                r#"
-  #html.main[#link("/original/")[Original @generated #link("/generated/")[Inner]]] <page>
-"#,
+                    2,
+                ),
             ] {
                 let site = QuerySite::new("/");
                 let compiled = site.compile(
@@ -3405,9 +3746,14 @@ path = "icons/brand"
 #set heading(numbering: "1.")
 #document("from.html")[
 {body}
-  #context [#metadata(references(from-within: <page>)) <outgoing>]
+  #context [
+    #metadata(references(from-within: <page>)) <outgoing>
+  ]
 ]
-#document("original/index.html")[= Original <original>]
+#document("original/index.html")[
+  = Original <original>
+  #context [#metadata(references(to: auto)) <incoming>]
+]
 #document("generated/index.html")[
   = Generated <generated>
   #context [#metadata(references(to: auto, from-within: <page>)) <incoming>]
@@ -3417,17 +3763,25 @@ path = "icons/brand"
                     true,
                 );
                 let outgoing = records(&compiled, "from.html", "outgoing");
-                assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+                assert_eq!(outgoing.len(), reported, "{outgoing:?}");
+                for reference in &outgoing {
+                    assert_eq!(
+                        target(reference).get("output").unwrap(),
+                        &"generated/index.html".into_value(),
+                        "{outgoing:?}"
+                    );
+                }
                 assert_eq!(
-                    target(&outgoing[0]).get("output").unwrap(),
-                    &"original/index.html".into_value(),
+                    records(&compiled, "generated/index.html", "incoming").len(),
+                    reported
                 );
-                assert!(records(&compiled, "generated/index.html", "incoming").is_empty());
+                assert!(records(&compiled, "original/index.html", "incoming").is_empty());
             }
         }
 
+        /// Links a show rule produces are reported in the region that holds them.
         #[test]
-        fn source_scopes_keep_global_reference_owners() {
+        fn show_generated_links_join_their_own_region() {
             let site = QuerySite::new("/");
             let compiled = site.compile(
                 r#"
@@ -3447,17 +3801,20 @@ path = "icons/brand"
 "#,
                 true,
             );
-            assert!(records(&compiled, "from.html", "region").is_empty());
-            let outgoing = records(&compiled, "from.html", "document");
-            assert_eq!(outgoing.len(), 1);
-            assert_eq!(
-                target(&outgoing[0]).get("output").unwrap(),
-                &"original.html".into_value()
-            );
+            let region = records(&compiled, "from.html", "region");
+            assert_eq!(region.len(), 2, "{region:?}");
+            for reference in &region {
+                assert_eq!(
+                    target(reference).get("output").unwrap(),
+                    &"generated/index.html".into_value()
+                );
+            }
+            assert_eq!(records(&compiled, "from.html", "document").len(), 2);
         }
 
+        /// Occurrences stay in the region that holds them, wherever a derived query reads them.
         #[test]
-        fn mixed_rendering_preserves_region_ownership() {
+        fn derived_occurrences_keep_their_regions() {
             let site = QuerySite::new("/");
             site.compile(
                 r#"
@@ -3468,8 +3825,8 @@ path = "icons/brand"
   #html.main[#link("/original/")[Original]] <page>
   #context {
     let found = references(from-within: <page>)
-    assert.eq(found.len(), 1)
-    assert.eq(found.first().target.output, "original/index.html")
+    assert.eq(found.len(), 2)
+    for reference in found [ assert.eq(reference.target.output, "generated/index.html") ]
   }
 ]
 #document("inner.html")[
@@ -3477,14 +3834,14 @@ path = "icons/brand"
     #html.main[#link("/generated/")[First] #link("/generated/")[Second]] <decorative>
   ]
   @original
-  #context assert.eq(references(from-within: <decorative>), ())
+  #context assert.eq(references(from-within: <decorative>).len(), 2)
 ]
 #document("original/index.html")[= Original <original>]
 #document("generated/index.html")[
   = Generated <generated>
   #context {
-    let generated = query(<generated>).first()
-    assert.eq(references(to: generated.location(), from-within: <page>), ())
+    let heading = query(<generated>).first().location()
+    assert.eq(references(to: heading, from-within: <page>).len(), 1)
   }
 ]
 #document("empty.html")[
@@ -3496,10 +3853,12 @@ path = "icons/brand"
             );
         }
 
+        /// A chain of show rules reports the reference that finally reached the output.
         #[test]
-        fn reference_chains_keep_global_ownership() {
-            for body in [
-                r#"
+        fn show_chains_report_the_last_reference() {
+            for (body, in_page, in_decorative, output) in [
+                (
+                    r#"
   #show ref.where(target: <original>): _ => ref(<middle>)
   #show ref.where(target: <middle>): _ => ref(<generated>)
   #show ref.where(target: <generated>): _ => [
@@ -3507,13 +3866,22 @@ path = "icons/brand"
   ]
   #html.main[@original] <page>
 "#,
-                r#"
+                    2,
+                    2,
+                    "generated/index.html",
+                ),
+                (
+                    r#"
   #html.main[
     #link("/original/")[Original #link("/middle/")[Middle
       #html.main[#link("/generated/")[Generated]] <decorative>
     ]]
   ] <page>
 "#,
+                    1,
+                    0,
+                    "original/index.html",
+                ),
             ] {
                 let site = QuerySite::new("/");
                 site.compile(
@@ -3525,9 +3893,9 @@ path = "icons/brand"
 {body}
   #context {{
     let found = references(from-within: <page>)
-    assert.eq(found.len(), 1)
-    assert.eq(found.first().target.output, "original/index.html")
-    assert.eq(references(from-within: <decorative>), ())
+    assert.eq(found.len(), {in_page})
+    assert.eq(found.first().target.output, "{output}")
+    assert.eq(references(from-within: <decorative>).len(), {in_decorative})
   }}
 ]
 #document("original/index.html")[= Original <original>]
@@ -3538,6 +3906,119 @@ path = "icons/brand"
                     true,
                 );
             }
+        }
+
+        /// A link a show rule turns into plain text never reaches the output, so it is not reported.
+        #[test]
+        fn removed_links_are_not_reported() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("from.html")[
+  #show link: it => it.body
+  #html.main[#link("/generated/")[Generated]] <page>
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("generated/index.html")[Generated]
+"#,
+                true,
+            );
+            assert!(records(&compiled, "from.html", "outgoing").is_empty());
+        }
+
+        /// A raw anchor belongs to the final HTML checks, not to this query.
+        #[test]
+        fn raw_html_anchors_are_not_native_references() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("from.html")[
+  #show link: it => html.a(href: "/generated/")[Raw]
+  #html.main[#link("/generated/")[Generated]] <page>
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("generated/index.html")[Generated]
+"#,
+                true,
+            );
+            assert!(records(&compiled, "from.html", "outgoing").is_empty());
+        }
+
+        /// A link its show rule writes twice reached the output twice, and is reported twice.
+        #[test]
+        fn duplicated_links_report_each_occurrence() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("from.html")[
+  #show link: it => [#it #it]
+  #html.main[#link("/generated/")[Generated]] <page>
+  #context [#metadata(references(from-within: <page>)) <outgoing>]
+]
+#document("generated/index.html")[Generated]
+"#,
+                true,
+            );
+            let outgoing = records(&compiled, "from.html", "outgoing");
+            assert_eq!(outgoing.len(), 2, "{outgoing:?}");
+            for reference in &outgoing {
+                assert_eq!(
+                    target(reference).get("output").unwrap(),
+                    &"generated/index.html".into_value()
+                );
+            }
+        }
+
+        /// Paged links count once their marker reached a page; measuring alone leaves none.
+        #[test]
+        fn paged_links_report_retained_markers() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("report.pdf")[
+  #link("/generated/")[Shown]
+  #hide[#link("/generated/")[Hidden]]
+  #context measure[#link("/generated/")[Measured]]
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("generated/index.html")[Generated]
+"#,
+                true,
+            );
+            let outgoing = records(&compiled, "report.pdf", "outgoing");
+            assert_eq!(outgoing.len(), 2, "{outgoing:?}");
+            for reference in &outgoing {
+                assert_eq!(
+                    target(reference).get("output").unwrap(),
+                    &"generated/index.html".into_value()
+                );
+            }
+        }
+
+        /// A compilation that never installed the channel says so instead of reporting nothing.
+        #[test]
+        fn missing_channel_fails_the_compilation() {
+            let site = QuerySite::new("/");
+            let world = site.world(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("index.html")[#context [#metadata(references()) <outgoing>]]
+"#,
+                true,
+            );
+            let errors = typst::compile::<tola_typst::typst_bundle::Bundle>(&world)
+                .output
+                .expect_err("a compilation without the channel reports an error");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("records no references")),
+                "{errors:?}"
+            );
         }
 
         #[test]
@@ -3748,6 +4229,280 @@ path = "icons/brand"
                     }
                 );
             }
+        }
+
+        /// What the query reports is decided by the program, never by the state of the cache.
+        #[test]
+        fn cleared_cache_keeps_records_identical() {
+            let source = r#"
+#import "@tola/document:0.0.0": references
+#show link.where(dest: "/original/"): _ => link("/generated/")[Generated]
+#document("from.html")[
+  #html.main[#link("/original/")[Original] #link("/generated/")[Direct]] <page>
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("generated/index.html")[Generated]
+"#;
+            let site = QuerySite::new("/");
+            let semantics = |compilation: &tola_typst::BundleCompilation| {
+                records(compilation, "from.html", "outgoing")
+                    .into_iter()
+                    .map(|reference| {
+                        (
+                            target(&reference).get("output").unwrap().clone(),
+                            reference.get("destination").unwrap().clone(),
+                            reference.get("resolution").unwrap().clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let cold = site.compile(source, true);
+            let warm = site.compile(source, true);
+            typst::comemo::evict(0);
+            let cleared = site.compile(source, true);
+
+            assert_eq!(semantics(&cold).len(), 2);
+            assert_eq!(semantics(&cold), semantics(&warm));
+            assert_eq!(semantics(&cold), semantics(&cleared));
+        }
+
+        /// A page that renders what references it settles without a non-convergence warning.
+        #[test]
+        fn reference_queries_converge_without_warning() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#document("index.html")[
+  #show link.where(dest: "/linked/"): _ => link("/other/")[Rewritten]
+  #html.main[#link("/linked/")[Linked]] <body>
+  #context {
+    let written = references(from: auto, from-within: <body>)
+    assert.eq(written.len(), 1)
+    assert.eq(written.first().target.output, "other/index.html")
+  }
+]
+#document("other/index.html")[
+  Other
+  #context {
+    let incoming = references(to: auto, from-within: <body>)
+    assert.eq(incoming.len(), 1)
+  }
+]
+"#,
+                true,
+            );
+            let messages = compiled
+                .diagnostics()
+                .raw()
+                .iter()
+                .map(|diagnostic| diagnostic.source().message.to_string())
+                .collect::<Vec<_>>();
+            assert!(
+                !messages
+                    .iter()
+                    .any(|message| message.contains("did not converge")),
+                "{messages:?}"
+            );
+        }
+
+        /// A ref reports its own element and the label it names, in either output format.
+        #[test]
+        fn refs_keep_their_label_in_every_format() {
+            for path in ["ref.html", "ref.pdf"] {
+                let site = QuerySite::new("/");
+                let compiled = site.compile(
+                    &format!(
+                        r#"
+#import "@tola/document:0.0.0": references
+#set heading(numbering: "1.")
+#document("{path}")[
+  = Target <reftarget>
+  See @reftarget
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+"#,
+                    ),
+                    true,
+                );
+                let outgoing = records(&compiled, path, "outgoing");
+                assert_eq!(outgoing.len(), 1, "{path}: {outgoing:?}");
+                assert_eq!(
+                    outgoing[0]
+                        .get("destination")
+                        .unwrap()
+                        .clone()
+                        .cast::<Label>()
+                        .unwrap(),
+                    Label::new(typst::utils::PicoStr::intern("reftarget")).unwrap(),
+                    "{path}"
+                );
+                let element = outgoing[0]
+                    .get("element")
+                    .unwrap()
+                    .clone()
+                    .cast::<Content>()
+                    .unwrap();
+                assert_eq!(element.func().name(), "ref", "{path}");
+                assert_eq!(
+                    target(&outgoing[0]).get("fragment").unwrap(),
+                    &"reftarget".into_value(),
+                    "{path}"
+                );
+            }
+        }
+
+        /// A footnote inside a link stays out of the list, in either output format.
+        #[test]
+        fn footnotes_inside_links_stay_out() {
+            for path in ["doc.html", "doc.pdf"] {
+                let site = QuerySite::new("/");
+                let compiled = site.compile(
+                    &format!(
+                        r#"
+#import "@tola/document:0.0.0": references
+#document("{path}")[
+  #link("/target/")[Linked text#footnote[Note]]
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("target/index.html")[Target]
+"#,
+                    ),
+                    true,
+                );
+                let outgoing = records(&compiled, path, "outgoing");
+                assert_eq!(outgoing.len(), 1, "{path}: {outgoing:?}");
+                assert_eq!(
+                    target(&outgoing[0]).get("output").unwrap(),
+                    &"target/index.html".into_value(),
+                    "{path}"
+                );
+            }
+        }
+
+        /// A link a show rule writes for a ref is reported as that link, not as the ref.
+        #[test]
+        fn show_written_links_stay_links() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#set heading(numbering: "1.")
+#document("doc.html")[
+  #show ref: it => context [
+    #html.span[#link(query(it.target).first().location())[X]] <region>
+  ]
+  = Target <reftarget>
+  See @reftarget
+  #context [
+    #metadata(references(from-within: <region>)) <region-records>
+  ]
+]
+"#,
+                true,
+            );
+            let region = records(&compiled, "doc.html", "region-records");
+            assert_eq!(region.len(), 1, "{region:?}");
+            let element = region[0]
+                .get("element")
+                .unwrap()
+                .clone()
+                .cast::<Content>()
+                .unwrap();
+            assert_eq!(element.func().name(), "link");
+
+            // The same program in paged output: the show rule replaces the ref, so the only
+            // reference the page uses is the link it wrote.
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#set heading(numbering: "1.")
+#document("doc.pdf")[
+  #show ref: it => context [
+    #link(query(it.target).first().location())[X]
+  ]
+  = Target <reftarget>
+  See @reftarget
+  #context [#metadata(references(from: auto)) <written>]
+]
+"#,
+                true,
+            );
+            let written = records(&compiled, "doc.pdf", "written");
+            assert_eq!(written.len(), 1, "{written:?}");
+            let element = written[0]
+                .get("element")
+                .unwrap()
+                .clone()
+                .cast::<Content>()
+                .unwrap();
+            assert_eq!(element.func().name(), "link", "{written:?}");
+        }
+
+        /// A paged link split by a page break keeps the element that owns it.
+        #[test]
+        fn paged_links_survive_page_breaks() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#show link: it => [Prefix #pagebreak()#it]
+#document("split.pdf")[
+  #link("/target/")[Split link]
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("target/index.html")[Target]
+"#,
+                true,
+            );
+            let outgoing = records(&compiled, "split.pdf", "outgoing");
+            assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+            assert_eq!(
+                target(&outgoing[0]).get("output").unwrap(),
+                &"target/index.html".into_value()
+            );
+        }
+
+        /// Refs one source line writes in a loop keep their own targets.
+        #[test]
+        fn loop_written_refs_keep_their_own_targets() {
+            let site = QuerySite::new("/");
+            let compiled = site.compile(
+                r#"
+#import "@tola/document:0.0.0": references
+#set heading(numbering: "1.")
+#document("source.html")[
+  #html.main[
+    #for index in range(3) [#ref(label("target-" + str(index)))]
+  ] <body>
+  #context [#metadata(references(from: auto)) <outgoing>]
+]
+#document("t0/index.html")[= Zero <target-0>]
+#document("t1/index.html")[= One <target-1>]
+#document("t2/index.html")[= Two <target-2>]
+"#,
+                true,
+            );
+            let outgoing = records(&compiled, "source.html", "outgoing");
+            assert_eq!(outgoing.len(), 3, "{outgoing:?}");
+            for reference in &outgoing {
+                assert_eq!(
+                    reference.get("resolution").unwrap(),
+                    &"found".into_value(),
+                    "{outgoing:?}"
+                );
+            }
+            let mut targets = outgoing
+                .iter()
+                .map(|reference| target(reference).get("output").unwrap().clone())
+                .collect::<Vec<_>>();
+            targets.sort_by_key(|value| format!("{value:?}"));
+            assert_eq!(
+                targets,
+                ["t0/index.html", "t1/index.html", "t2/index.html"].map(|path| path.into_value()),
+                "{outgoing:?}"
+            );
         }
 
         #[test]
@@ -4970,6 +5725,279 @@ path = "icons/brand"
         }
 
         #[test]
+        fn source_schemas_preserve_selected_order() {
+            let (_directory, world) = source_world(
+                r#"
+#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema, map, trim
+#let original = all-sources()
+#let selected = (original.at(1), original.at(0))
+#let page-schema = schema((title: trim(str)))
+#let post-schema = schema((title: map(trim(str), title => title + "!"), rank: int))
+#let parsed = parse-sources(selected, source => {
+  if source.route-segments.first() == "posts" { post-schema } else { page-schema }
+})
+#assert.eq(parsed.map(source => source.id), ("posts/note.typ", "about.typ"))
+#assert.eq(parsed.map(source => source.meta), ((title: "Note!", rank: 3), (title: "About")))
+#for (before, after) in selected.zip(parsed) {
+  assert.eq(after + (meta: before.meta), before)
+}
+#assert.eq(all-sources(), original)
+#document("index.html")[]
+"#,
+                &[
+                    (
+                        "about.typ",
+                        "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: \" About \"))",
+                    ),
+                    (
+                        "posts/note.typ",
+                        "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: \" Note \", rank: 3))",
+                    ),
+                ],
+            );
+            tola_typst::compile_bundle_world(&world, &Default::default()).unwrap();
+        }
+
+        #[test]
+        fn mixed_schema_issues_keep_source_locations() {
+            let errors = source_errors(
+                r#"
+#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema
+#let parsed = parse-sources(all-sources(), source => {
+  if source.route-segments.first() == "posts" {
+    schema((title: str, rank: int))
+  } else {
+    schema((title: str))
+  }
+})
+#document("index.html")[]
+"#,
+                &[
+                    (
+                        "about.typ",
+                        "\n#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: 1))",
+                    ),
+                    (
+                        "posts/note.typ",
+                        "\n\n#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: false, rank: \"bad\"))",
+                    ),
+                ],
+            );
+            assert_eq!(
+                errors
+                    .iter()
+                    .map(|error| (error.location.path.as_deref(), error.location.line))
+                    .collect::<Vec<_>>(),
+                [
+                    (Some("content/about.typ"), Some(3)),
+                    (Some("content/posts/note.typ"), Some(4)),
+                    (Some("content/posts/note.typ"), Some(4)),
+                ]
+            );
+            assert!(errors[0].message.contains("$.title"));
+            assert!(errors[1].message.contains("$.title"));
+            assert!(errors[2].message.contains("$.rank"));
+        }
+
+        #[test]
+        fn source_schema_errors_stop_parsing() {
+            for declaration in ["panic(\"schema unavailable\")", "none"] {
+                let errors = source_errors(
+                    &format!(
+                        r#"
+#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema
+#let parsed = parse-sources(all-sources(), source => {{
+  if source.path == "about.typ" {{ schema((title: str)) }} else {{ {declaration} }}
+}})
+#document("index.html")[]
+"#
+                    ),
+                    &[
+                        (
+                            "about.typ",
+                            "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: 1))",
+                        ),
+                        (
+                            "posts/note.typ",
+                            "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((title: false))",
+                        ),
+                    ],
+                );
+                assert_eq!(errors.len(), 1, "{errors:?}");
+                assert_ne!(
+                    errors[0].location.path.as_deref(),
+                    Some("content/about.typ")
+                );
+            }
+        }
+
+        #[test]
+        fn schema_failures_name_source_types() {
+            for (declaration, expected, actual) in [
+                ("none", "parse-sources schema", "none"),
+                ("(title: str)", "parse-sources schema", "dictionary"),
+                ("source => none", "schema function", "none"),
+                ("source => () => none", "schema function", "function"),
+            ] {
+                let errors = source_errors(
+                    &format!(
+                        r#"#import "@tola/source:0.0.0": all-sources, parse-sources
+#let parsed = parse-sources(all-sources(), {declaration})
+#document("index.html")[]"#
+                    ),
+                    &[("note.typ", "")],
+                );
+                assert_eq!(errors.len(), 1, "{errors:?}");
+                let error = &errors[0];
+                assert_eq!(error.location.path.as_deref(), Some("site.typ"));
+                assert_eq!(error.location.line, Some(2));
+                assert!(error.message.contains(expected), "{error:?}");
+                assert!(error.message.contains("content/note.typ"), "{error:?}");
+                assert!(error.message.contains(&format!("`{actual}`")), "{error:?}");
+                assert!(
+                    error
+                        .message
+                        .contains("expected a Typst type or schema declaration"),
+                    "{error:?}"
+                );
+                if actual == "dictionary" {
+                    assert!(
+                        error
+                            .hints
+                            .iter()
+                            .any(|hint| hint.message.contains("schema(...)")),
+                        "{error:?}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn schema_arguments_point_to_callers() {
+            let errors = source_errors(
+                r#"#import "@tola/schema:0.0.0": array-of
+#let broken = array-of(value => value)
+#document("index.html")[]"#,
+                &[],
+            );
+            assert_eq!(errors[0].location.path.as_deref(), Some("site.typ"));
+            assert_eq!(errors[0].location.line, Some(2));
+            assert!(errors[0].message.contains("array-of"));
+            assert!(
+                errors[0]
+                    .message
+                    .contains("expected a Typst type or schema declaration, found `function`")
+            );
+        }
+
+        #[test]
+        fn callback_failures_keep_authored_locations() {
+            for declaration in ["source => fail()", "source => { try-parse(none, none) }"] {
+                let errors = source_errors(
+                    &format!(
+                        r#"#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": try-parse
+#let fail() = panic("schema unavailable")
+#let parsed = parse-sources(all-sources(), {declaration})
+#document("index.html")[]"#
+                    ),
+                    &[("note.typ", "")],
+                );
+                let error = &errors[0];
+                assert_eq!(error.location.path.as_deref(), Some("site.typ"));
+                assert!(!error.message.contains("function for"), "{error:?}");
+                assert!(
+                    error
+                        .hints
+                        .iter()
+                        .any(|hint| hint.message.contains("content/note.typ")),
+                    "{error:?}"
+                );
+                if declaration.contains("fail()") {
+                    assert_eq!(error.location.line, Some(3));
+                    assert!(error.message.contains("schema unavailable"));
+                    assert!(
+                        error
+                            .traces
+                            .iter()
+                            .any(|trace| trace.location.path.as_deref() == Some("site.typ")),
+                        "{error:?}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn literal_fields_keep_nested_ranges() {
+            let errors = source_errors(
+                r#"#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema, array-of
+#let parsed = parse-sources(all-sources(), schema((tree: array-of(schema((title: str))))))
+#document("index.html")[]"#,
+                &[(
+                    "note.typ",
+                    "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((tree: (\n  (title: 3),\n)))",
+                )],
+            );
+            assert_eq!(errors[0].location.path.as_deref(), Some("content/note.typ"));
+            assert_eq!(errors[0].location.line, Some(3));
+            assert_eq!(errors[0].location.source_lines[0].text, "  (title: 3),");
+            assert!(errors[0].message.contains("$.tree[0].title"));
+            assert!(errors[0].message.contains("found"));
+        }
+
+        #[test]
+        fn computed_metadata_keeps_declaration_location() {
+            let errors = source_errors(
+                r#"#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema
+#let parsed = parse-sources(all-sources(), schema((title: str)))
+#document("index.html")[]"#,
+                &[(
+                    "note.typ",
+                    "#import \"@tola/source:0.0.0\": tola-meta\n#let fields = (title: 3)\n#tola-meta(fields)",
+                )],
+            );
+            assert_eq!(errors[0].location.line, Some(3));
+            assert_eq!(errors[0].location.column, Some(2));
+        }
+
+        #[test]
+        fn source_issues_keep_nested_hints() {
+            let errors = source_errors(
+                r#"#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": check, issue
+#let member = check(dictionary, _ => ((..issue("invalid metadata", notes: ("review metadata",)), children: (issue("choose a title", path: ("title",)),)),))
+#let parsed = parse-sources(all-sources(), member)
+#document("index.html")[]"#,
+                &[(
+                    "note.typ",
+                    "#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((\n  title: 3,\n))",
+                )],
+            );
+            assert_eq!(errors.len(), 1);
+            assert!(errors[0].message.contains("invalid metadata"));
+            assert!(!errors[0].message.contains("choose a title"));
+            assert!(
+                errors[0]
+                    .hints
+                    .iter()
+                    .any(|hint| hint.message == "review metadata")
+            );
+            let child = errors[0]
+                .hints
+                .iter()
+                .find(|hint| hint.message.contains("choose a title"))
+                .unwrap();
+            assert_eq!(child.location.path.as_deref(), Some("content/note.typ"));
+            assert_eq!(child.location.line, Some(3));
+            assert!(child.message.contains("$.title"));
+        }
+
+        #[test]
         fn absent_metadata_uses_source_defaults() {
             let (_directory, world) = source_world(
                 r#"
@@ -5036,6 +6064,41 @@ path = "icons/brand"
         }
 
         #[test]
+        fn path_issues_anchor_to_each_source() {
+            let errors = source_errors(
+                r#"
+#import "@tola/source:0.0.0": all-sources, parse-sources
+#import "@tola/schema:0.0.0": schema, url-path
+#let parsed = parse-sources(all-sources(), schema((permalink: url-path)))
+#document("index.html")[]
+"#,
+                &[
+                    (
+                        "escape.typ",
+                        "\n#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((permalink: \"/bad%/\"))",
+                    ),
+                    (
+                        "separator.typ",
+                        "\n\n#import \"@tola/source:0.0.0\": tola-meta\n#tola-meta((permalink: \"/a%2Fb/\"))",
+                    ),
+                ],
+            );
+            assert_eq!(
+                errors
+                    .iter()
+                    .map(|error| (error.location.path.as_deref(), error.location.line))
+                    .collect::<Vec<_>>(),
+                [
+                    (Some("content/escape.typ"), Some(3)),
+                    (Some("content/separator.typ"), Some(4)),
+                ]
+            );
+            for error in errors {
+                assert!(error.message.contains("$.permalink"), "{error:?}");
+            }
+        }
+
+        #[test]
         fn generated_errors_anchor_to_declarations() {
             let errors = source_errors(
                 r#"
@@ -5068,9 +6131,9 @@ path = "icons/brand"
         #[test]
         fn malformed_source_records_report_contract() {
             for (sources, expected) in [
-                ("none", "parse-sources expects an array"),
-                ("(1,)", "value at index 0"),
-                ("((path: 1, meta: none),)", "value at index 0"),
+                ("none", ["`sources`", "type(none)"]),
+                ("(1,)", ["index 0", "`1`"]),
+                ("((path: 1, meta: none),)", ["index 0", "path: 1"]),
             ] {
                 let errors = source_errors(
                     &format!(
@@ -5084,7 +6147,9 @@ path = "icons/brand"
                     &[],
                 );
                 assert!(
-                    errors.iter().any(|error| error.message.contains(expected)),
+                    errors
+                        .iter()
+                        .any(|error| expected.iter().all(|text| error.message.contains(text))),
                     "{sources}: {errors:?}"
                 );
             }

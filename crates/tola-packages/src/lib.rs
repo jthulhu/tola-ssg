@@ -14,6 +14,8 @@ mod assets;
 mod builtin;
 mod code_render;
 mod code_themes;
+pub mod date;
+mod diagnostic;
 mod docs;
 mod icons;
 mod image_request;
@@ -43,8 +45,8 @@ pub use docs::{
     RelatedTarget, Signature, cast_spelling, documentation_segments, type_spelling,
 };
 pub use icons::{
-    PublishedIcon, collection_of_icon_file, icon_file_bytes, is_icon_file, published_icon_path,
-    published_icon_request,
+    PublishedIcon, collection_of_icon_file, icon_collection_names_bytes, icon_file_bytes,
+    is_icon_file, published_icon_path, published_icon_request,
 };
 pub use image_request::{ImageRequest, observation_bytes, owns_observation};
 pub use images::AssetUrlShadowed;

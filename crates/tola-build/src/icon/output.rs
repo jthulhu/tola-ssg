@@ -162,4 +162,124 @@ mod tests {
             "an inline icon is not a published file"
         );
     }
+
+    fn compilation_diagnostics(site_config: &OwnedSiteConfig) -> tola_typst::Diagnostics {
+        let error = crate::build::build_site(&site_config.config, BuildMode::Production)
+            .err()
+            .expect("an invalid icon prevents compilation");
+        error
+            .chain()
+            .find_map(|cause| cause.downcast_ref::<tola_typst::CompileError>())
+            .and_then(tola_typst::CompileError::diagnostics)
+            .expect("the build retains Typst diagnostics")
+            .clone()
+    }
+
+    #[test]
+    fn missing_icon_keeps_helper_callers() {
+        let site_config = config_with_icons(
+            "#import \"preferences.typ\": preferences\n#document(\"index.html\")[#preferences()]",
+        );
+        let root = site_config.config.get_root();
+        fs::write(root.join("helper.typ"), "#import \"@tola/icon:0.0.0\": icon as render-icon\n#let icon(name) = render-icon(\"brand:\" + name)").unwrap();
+        fs::write(
+            root.join("preferences.typ"),
+            "#import \"helper.typ\": icon\n#let preferences() = [#icon(\"mrk\")]",
+        )
+        .unwrap();
+        let diagnostics = compilation_diagnostics(&site_config);
+        let diagnostic = diagnostics.errors().next().unwrap();
+        assert_eq!(diagnostic.location.path.as_deref(), Some("helper.typ"));
+        assert_eq!(diagnostic.location.line, Some(2));
+        assert!(
+            diagnostic
+                .traces
+                .iter()
+                .any(
+                    |trace| trace.location.path.as_deref() == Some("preferences.typ")
+                        && trace.location.line == Some(2)
+                )
+        );
+        assert!(
+            diagnostic
+                .hints
+                .iter()
+                .any(|hint| hint.message.contains("brand:mark"))
+        );
+        let raw = diagnostics
+            .raw()
+            .iter()
+            .find(|native| native.source().message.contains("brand:mrk"))
+            .unwrap();
+        assert!(
+            matches!(raw.source().span.id().unwrap().root(), typst::syntax::VirtualRoot::Package(package) if package == &tola_packages::TolaPackage::Icon.spec())
+        );
+        assert!(raw.source().trace.iter().any(|trace| matches!(
+            trace.span.id().unwrap().root(),
+            typst::syntax::VirtualRoot::Project
+        )));
+    }
+
+    #[test]
+    fn unused_icons_validate_ids() {
+        for (id, message, suggestion) in [
+            ("brand", "not a valid icon id", false),
+            ("absent:mark", "not declared in `icons.collections`", false),
+            ("brand:mrk", "not in collection `brand`", true),
+            ("brand:palette", "not in collection `brand`", false),
+        ] {
+            let mut site_config = config_with_icons(&format!(
+                "#import \"@tola/icon:0.0.0\": icon\n#let unused = icon(\"{id}\")\n#document(\"index.html\")[Body]"
+            ));
+            let other = site_config.config.get_root().join("other-icons");
+            fs::create_dir(&other).unwrap();
+            fs::write(other.join("palette.svg"), MARK).unwrap();
+            site_config.config.icons.collections.insert(
+                "copy".into(),
+                crate::config::section::IconCollectionSource::LocalSvgDir { path: other },
+            );
+            let diagnostics = compilation_diagnostics(&site_config);
+            let diagnostic = diagnostics.errors().next().unwrap();
+            assert!(
+                diagnostic.message.contains(message),
+                "{}",
+                diagnostic.message
+            );
+            assert_eq!(diagnostic.location.path.as_deref(), Some("site.typ"));
+            assert_eq!(diagnostic.location.line, Some(2));
+            assert_eq!(
+                diagnostic
+                    .hints
+                    .iter()
+                    .any(|hint| hint.message.contains("Did you mean")),
+                suggestion
+            );
+        }
+    }
+
+    #[test]
+    fn alias_names_remain_callable() {
+        let mut site_config = config_with_icons(
+            "#import \"@tola/icon:0.0.0\": icon, icon-bytes\n#let alias = icon-bytes(\"brand:alias\")\n#assert.eq(alias, icon-bytes(\"brand:e001\"))\n#let unused = icon(\"brand:alais\")\n#document(\"index.html\")[Body]",
+        );
+        let path = site_config.config.get_root().join("icons.json");
+        fs::write(&path, r#"{"prefix":"other","icons":{"palette":{"body":"<path/>"}},"aliases":{"alias":{"parent":"palette"}},"chars":{"e001":"alias"}}"#).unwrap();
+        site_config.config.icons.collections.insert(
+            "brand".into(),
+            crate::config::section::IconCollectionSource::LocalJson { path },
+        );
+        let diagnostics = compilation_diagnostics(&site_config);
+        let diagnostic = diagnostics.errors().next().unwrap();
+        assert!(
+            diagnostic.message.contains("brand:alais"),
+            "{}",
+            diagnostic.message
+        );
+        assert!(
+            diagnostic
+                .hints
+                .iter()
+                .any(|hint| hint.message.contains("brand:alias"))
+        );
+    }
 }

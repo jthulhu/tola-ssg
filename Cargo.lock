@@ -5640,6 +5640,7 @@ version = "0.8.0"
 dependencies = [
  "anyhow",
  "blake3",
+ "chrono",
  "comemo",
  "hex",
  "miniz_oxide 0.9.1",

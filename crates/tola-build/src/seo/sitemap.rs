@@ -7,7 +7,7 @@ use typst::foundations::Value;
 use crate::cancellation::BuildCancellation;
 use crate::config::ResolvedSiteConfig;
 use crate::seo::RenderError;
-use crate::seo::declaration::{SeoDeclaration, index_path, published_date, resolve_target};
+use crate::seo::declaration::{SeoDeclaration, index_path, resolve_target};
 
 pub(super) fn render_outputs(
     config: &ResolvedSiteConfig,
@@ -66,16 +66,8 @@ pub(super) fn render_outputs(
             xml.push_str("</loc>\n");
             if let Some(value) = lastmod.filter(|value| !matches!(value, Value::None)) {
                 let field = crate::seo::declaration::field_path(&field, "lastmod");
-                let date = match value {
-                    Value::Datetime(date) => crate::seo::date::format_datetime(date)
-                        .map_err(|error| declaration.invalid(&field, error.to_string()))?,
-                    Value::Str(text) if text.len() == 10 => {
-                        let timestamp = format!("{text}T00:00:00Z");
-                        timestamp.parse::<atom_syndication::FixedDateTime>().map_err(|_| declaration.invalid(&field, "expected a valid YYYY-MM-DD date"))?;
-                        text.to_string()
-                    }
-                    value => published_date(&declaration, value, &field)?.to_rfc3339(),
-                };
+                let date = super::date::lastmod(value)
+                    .map_err(|error| declaration.invalid(&field, error.to_string()))?;
                 xml.push_str("    <lastmod>");
                 xml.push_str(&date);
                 xml.push_str("</lastmod>\n");

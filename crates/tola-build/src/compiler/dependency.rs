@@ -1605,6 +1605,54 @@ mod tests {
     }
 
     #[test]
+    fn icon_name_reads_follow_membership() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let config = crate::config::tests::load_test_config(directory.path(), "");
+        let host = compiler_host(&config).unwrap();
+        let collections = |names: &[&str]| {
+            let mut collection = tola_icons::IconCollection::new();
+            for name in names {
+                collection
+                    .insert_svg(name, "<svg viewBox='0 0 1 1'><path/></svg>")
+                    .unwrap();
+            }
+            let mut collections = tola_icons::IconCollections::new();
+            collections.mount("brand", collection).unwrap();
+            Arc::new(collections)
+        };
+        let original = collections(&["palette"]);
+        let package = tola_packages::TolaPackage::Icon.spec();
+        let path = std::path::Path::new(".tola-icon/brand/.names");
+        let bytes = tola_packages::icon_collection_names_bytes(&original, &package, path).unwrap();
+        let read = ReadEvidence::new(
+            ReadLocator::ProvidedPackage {
+                package,
+                path: path.into(),
+            },
+            &bytes,
+        );
+        let dependencies = snapshot(
+            config.get_root(),
+            std::iter::empty(),
+            &config.build.entry,
+            Vec::new(),
+            vec![read],
+        );
+        let matches = |collections| {
+            let current = host.with_icons(collections);
+            dependencies
+                .virtual_reads_match(
+                    |evidence| current.virtual_read_matches(evidence),
+                    &BuildCancellation::default(),
+                )
+                .unwrap()
+        };
+        assert!(matches(Arc::clone(&original)));
+        assert!(!matches(collections(&["palette", "paints"])));
+        assert!(!matches(collections(&[])));
+    }
+
+    #[test]
     fn unstable_virtual_reads_force_rebuild() {
         let directory = tempfile::TempDir::new().unwrap();
         let root = directory.path();

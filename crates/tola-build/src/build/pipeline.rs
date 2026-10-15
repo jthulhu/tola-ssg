@@ -868,10 +868,10 @@ mod tests {
         fs::write(
             root.join("site.typ"),
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output, slugify
+#import "@tola/address:0.0.0": join-route, output-of, slugify
 #for source in all-sources() {
-  let route = route(source.route-segments.map(segment => slugify(segment)))
-  document(route-to-output(route), format: "html")[#include source.file]
+  let route = join-route(source.route-segments.map(segment => slugify(segment)))
+  document(output-of(route), format: "html")[#include source.file]
 }
 "#,
         )
@@ -1457,12 +1457,12 @@ mod tests {
     /// slugs as `toukyou` under `ja`, not the Chinese `dong-jing`.
     #[test]
     fn slugify_reads_site_language() {
-        let program = r#"#import "@tola/address:0.0.0": route, route-to-output, slugify
+        let program = r#"#import "@tola/address:0.0.0": join-route, output-of, slugify
 #import "@tola/site:0.0.0": site
 #import "@tola/source:0.0.0": all-sources
 
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments.map(segment => slugify(segment, mode: "ascii", language: site.language.lang)))))[#source.id]
+  document(output-of(join-route(source.route-segments.map(segment => slugify(segment, mode: "ascii", language: site.language.lang)))))[#source.id]
 }"#;
         let cases = [
             (
@@ -1883,12 +1883,12 @@ mod tests {
         fs::write(
             &entry,
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 
 #let published = all-sources()
 
 #for source in published {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }
 "#,
         )
@@ -1973,10 +1973,10 @@ mod tests {
             &entry,
             r#"#import "@tola/source:0.0.0": all-sources
 #import "@tola/document:0.0.0": current-document
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }
 
 #document("tags/rust/index.html", context {
@@ -2059,10 +2059,10 @@ mod tests {
         fs::write(
             &entry,
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }
 #asset("generated.txt", "generated asset")
 "#,
@@ -2115,9 +2115,9 @@ mod tests {
         fs::write(
             &entry,
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 #for source in all-sources().filter(source => not source.meta.draft) {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }"#,
         )
         .unwrap();

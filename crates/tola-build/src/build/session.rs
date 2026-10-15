@@ -1964,10 +1964,10 @@ mod tests {
         .unwrap();
         fs::write(
             root.join("site.typ"),
-            r#"#import "@tola/address:0.0.0": route, route-to-output
+            r#"#import "@tola/address:0.0.0": join-route, output-of
 #import "@tola/source:0.0.0": all-sources
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)), [#source.meta.title])
+  document(output-of(join-route(source.route-segments)), [#source.meta.title])
 }"#,
         )
         .unwrap();
@@ -2043,9 +2043,9 @@ mod tests {
         fs::write(
             root.join("site.typ"),
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }"#,
         )
         .unwrap();
@@ -2125,9 +2125,9 @@ mod tests {
         fs::write(
             root.join("site.typ"),
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }"#,
         )
         .unwrap();

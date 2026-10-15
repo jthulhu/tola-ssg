@@ -8,6 +8,7 @@ use tola_typst::ContentDigest;
 use typst::World;
 use typst::comemo::Tracked;
 use typst::diag::{At, FileError, SourceResult, bail};
+use typst::ecow::eco_vec;
 use typst::engine::Engine;
 use typst::foundations::{Args, Bytes, Content, Context, Dict, NativeElement, Str, func};
 use typst::introspection::here;
@@ -15,7 +16,7 @@ use typst::syntax::{FileId, RootedPath, Span, VirtualPath, VirtualRoot};
 use typst::text::TextElem;
 use typst_html::{HtmlAttr, HtmlAttrs, HtmlElem, HtmlTag};
 
-/// The configured collection named by one `.tola-icon/<collection>/<name>.svg` path.
+/// The configured collection named by an icon SVG or its `.names` observation.
 ///
 /// `None` for any other package file, including malformed icon paths.
 pub fn collection_of_icon_file(path: &std::path::Path) -> Option<&str> {
@@ -24,7 +25,7 @@ pub fn collection_of_icon_file(path: &std::path::Path) -> Option<&str> {
         .ok()?
         .to_str()?;
     let (collection, name) = relative.split_once('/')?;
-    (!collection.is_empty() && name.ends_with(".svg")).then_some(collection)
+    (!collection.is_empty() && (name.ends_with(".svg") || name == ".names")).then_some(collection)
 }
 
 /// Whether `path` names an icon observation in the `@tola/icon` package.
@@ -56,6 +57,33 @@ pub fn icon_file_bytes<'a>(
     collections
         .get(collection, name.strip_suffix(".svg")?)
         .map(|icon| icon.svg().as_bytes())
+}
+
+/// Tracked names for suggestions within one mounted collection; aliases are included.
+pub fn icon_collection_names_bytes(
+    collections: &tola_icons::IconCollections,
+    package: &tola_typst::PackageSpec,
+    path: &std::path::Path,
+) -> Option<Vec<u8>> {
+    if !is_icon_file(package, path) {
+        return None;
+    }
+    let relative = path
+        .strip_prefix(ICON_OBSERVATION_DIRECTORY)
+        .ok()?
+        .to_str()?;
+    let (collection, name) = relative.split_once('/')?;
+    if name != ".names" {
+        return None;
+    }
+    Some(
+        collections
+            .collection(collection)?
+            .names()
+            .collect::<Vec<_>>()
+            .join("\n")
+            .into_bytes(),
+    )
 }
 
 /// One icon a document publishes as a file of its own.
@@ -158,18 +186,64 @@ fn icon_file(identity: &str) -> Result<(tola_icons::IconId, FileId), tola_icons:
 }
 
 fn read_icon(engine: &mut Engine, identity: &str, span: Span) -> SourceResult<ResolvedIcon> {
-    let (identity, file) = icon_file(identity)
-        .map_err(|error| format!("`{identity}` is not a valid icon id: {error}"))
-        .at(span)?;
+    let (identity, file) = icon_file(identity).map_err(|error| {
+        let mut error = crate::diagnostic::package_error(
+            span,
+            TolaPackage::Icon,
+            format!("`{identity}` is not a valid icon id: {error}"),
+        );
+        error.hint("Write `collection:name` using a configured collection");
+        eco_vec![error]
+    })?;
     let bytes = match engine.world.file(file) {
         Ok(bytes) => bytes,
         Err(FileError::NotFound(_)) => {
-            bail!(
-                span,
-                "the icon `{}:{}` is not in the collections declared by `icons.collections`",
-                identity.collection(),
-                identity.name(),
-            );
+            let names_file = FileId::new(RootedPath::new(
+                VirtualRoot::Package(TolaPackage::Icon.spec()),
+                VirtualPath::new(format!(
+                    "{ICON_OBSERVATION_DIRECTORY}/{}/.names",
+                    identity.collection()
+                ))
+                .expect("a validated collection name forms a virtual path"),
+            ));
+            let error = match engine.world.file(names_file) {
+                Ok(names) => {
+                    let mut error = crate::diagnostic::package_error(
+                        span,
+                        TolaPackage::Icon,
+                        format!(
+                            "the icon `{identity}` is not in collection `{}`",
+                            identity.collection()
+                        ),
+                    );
+                    let names = std::str::from_utf8(names.as_slice())
+                        .expect("collection names contain only validated ASCII names");
+                    if let Some(name) =
+                        tola_typst::spelling::closest(identity.name(), names.lines())
+                    {
+                        error.hint(format!("Did you mean `{}:{name}`?", identity.collection()));
+                    }
+                    error.hint(format!(
+                        "Run `tola inspect icons {}` to list names in this collection",
+                        identity.collection()
+                    ));
+                    error
+                }
+                Err(FileError::NotFound(_)) => {
+                    let mut error = crate::diagnostic::package_error(
+                        span,
+                        TolaPackage::Icon,
+                        format!(
+                            "icon collection `{}` is not declared in `icons.collections`",
+                            identity.collection()
+                        ),
+                    );
+                    error.hint(format!("Declare `[icons.collections.{}]` in the site configuration, or use a configured collection", identity.collection()));
+                    error
+                }
+                Err(error) => return Err::<ResolvedIcon, String>(error.to_string()).at(span),
+            };
+            return Err(eco_vec![error]);
         }
         Err(error) => return Err::<ResolvedIcon, String>(error.to_string()).at(span),
     };
@@ -209,12 +283,11 @@ pub(super) fn tola_icon_url(
 
 #[func(contextual)]
 pub(super) fn tola_icon(
-    engine: &mut Engine,
     context: Tracked<Context>,
     args: &mut Args,
     span: Span,
 ) -> SourceResult<Content> {
-    let identity = args.expect::<Str>("icon id")?;
+    let bytes = args.expect::<Bytes>("icon bytes")?;
     let label = args.named::<Option<Str>>("label")?.flatten();
     let attributes = args.named::<Dict>("attrs")?.unwrap_or_default();
     args.take().finish()?;
@@ -228,7 +301,7 @@ pub(super) fn tola_icon(
         );
     }
     let location = here(context).at(span)?;
-    let icon = parsed_icon(&read_icon(engine, &identity, span)?.bytes)
+    let icon = parsed_icon(&bytes)
         .map_err(|error| error.to_string())
         .at(span)?;
     let svg = icon
@@ -338,6 +411,49 @@ fn xml_content(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn suggestions_stay_inside_collection() {
+        let collection = tola_icons::IconCollection::from_iconify(
+            br#"{"prefix":"upstream","icons":{"palette":{"body":"<path/>"}},"aliases":{"paints":{"parent":"palette"}},"chars":{"e001":"palette"}}"#,
+        ).unwrap();
+        let mut collections = tola_icons::IconCollections::new();
+        collections.mount("lucide", collection).unwrap();
+        let package = TolaPackage::Icon.spec();
+        let path = std::path::Path::new(".tola-icon/lucide/.names");
+        let names = icon_collection_names_bytes(&collections, &package, path).unwrap();
+        let names = std::str::from_utf8(&names).unwrap();
+        assert_eq!(
+            tola_typst::spelling::closest("paette", names.lines()),
+            Some("palette")
+        );
+        assert_eq!(
+            tola_typst::spelling::closest("paint", names.lines()),
+            Some("paints")
+        );
+        assert_eq!(
+            tola_typst::spelling::closest("unrelated", names.lines()),
+            None
+        );
+        assert_eq!(collection_of_icon_file(path), Some("lucide"));
+        assert!(
+            icon_collection_names_bytes(
+                &collections,
+                &package,
+                std::path::Path::new(".tola-icon/upstream/.names")
+            )
+            .is_none()
+        );
+        assert!(
+            icon_file_bytes(
+                &collections,
+                &package,
+                std::path::Path::new(".tola-icon/lucide/e001.svg")
+            )
+            .is_some()
+        );
+        assert!(!names.contains("e001"));
+    }
 
     #[test]
     fn published_requests_round_trip() {

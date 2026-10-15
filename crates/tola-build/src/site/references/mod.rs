@@ -570,7 +570,6 @@ fn unchecked_base(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn resolve_reference(
     snapshot: &SiteIndex,
     page: &HtmlPage,

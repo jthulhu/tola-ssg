@@ -38,12 +38,11 @@ fn package_target(
     };
     let path = Path::new(id.vpath().get_with_slash().trim_start_matches('/'));
     if tola_packages::is_icon_file(spec, path) {
-        return Some(match icons {
-            Some(collections) => tola_packages::icon_file_bytes(collections, spec, path)
-                .map(|bytes| tola_typst::FileTarget::Bytes(Arc::from(bytes)))
-                .unwrap_or(tola_typst::FileTarget::Missing),
-            None => tola_typst::FileTarget::Missing,
-        });
+        return Some(
+            icons.map_or(tola_typst::FileTarget::Missing, |collections| {
+                package::icon_file_target(collections, spec, path)
+            }),
+        );
     }
     if tola_packages::owns_observation(spec, id.vpath().get_with_slash()) {
         return Some(
@@ -254,8 +253,12 @@ impl TypstHost {
     pub(crate) fn virtual_read_matches(&self, evidence: &ReadEvidence) -> bool {
         match evidence.locator() {
             ReadLocator::ProvidedPackage { package, path } => {
-                tola_packages::icon_file_bytes(&self.icons, package, path)
-                    .is_some_and(|bytes| ContentDigest::of(bytes) == evidence.digest())
+                match package::icon_file_target(&self.icons, package, path) {
+                    tola_typst::FileTarget::Bytes(bytes) => {
+                        ContentDigest::of(&bytes) == evidence.digest()
+                    }
+                    _ => false,
+                }
             }
             _ => false,
         }

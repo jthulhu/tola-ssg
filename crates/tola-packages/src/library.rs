@@ -101,6 +101,10 @@ pub const TOLA_META: &str = "tola-meta";
 
 pub(crate) fn native_scope() -> Scope {
     let mut host = Scope::deduplicating();
+    host.define(
+        "report-error",
+        Func::from(super::diagnostic::report_error::data()),
+    );
     host.define("icon", Func::from(super::icons::tola_icon::data()));
     host.define(
         "icon-bytes",
@@ -121,6 +125,14 @@ pub(crate) fn native_scope() -> Scope {
     );
     host.define(TOLA_META, Func::from(super::source_meta::tola_meta::data()));
     host.define(
+        "report-schema-error",
+        Func::from(super::source_issues::tola_report_schema_error::data()),
+    );
+    host.define(
+        "parse-source",
+        Func::from(super::source_issues::tola_parse_source::data()),
+    );
+    host.define(
         "report-source-issues",
         Func::from(super::source_issues::tola_report_source_issues::data()),
     );
@@ -133,26 +145,41 @@ pub(crate) fn native_scope() -> Scope {
         Func::from(super::natives::tola_source::data()),
     );
     host.define("slugify", Func::from(super::natives::tola_slug::data()));
-    host.define("route", Func::from(super::natives::tola_route::data()));
     host.define(
-        "route-to-output",
-        Func::from(super::natives::tola_route_to_output::data()),
+        "join-route",
+        Func::from(super::natives::tola_join_route::data()),
     );
     host.define(
-        "output-to-route",
-        Func::from(super::natives::tola_output_to_route::data()),
+        "output-of",
+        Func::from(super::natives::tola_output_of::data()),
+    );
+    host.define(
+        "route-of",
+        Func::from(super::natives::tola_route_of::data()),
     );
     host.define(
         "decode-url-path",
         Func::from(super::natives::tola_decode_url_path::data()),
     );
     host.define(
+        "parse-url-path",
+        Func::from(super::natives::tola_parse_url_path::data()),
+    );
+    host.define(
+        "parse-date",
+        Func::from(super::natives::tola_parse_date::data()),
+    );
+    host.define(
+        "parse-timestamp",
+        Func::from(super::natives::tola_parse_timestamp::data()),
+    );
+    host.define(
         "plain-text",
         Func::from(super::text::tola_plain_text::data()),
     );
     host.define(
-        "output-to-url",
-        Func::from(super::natives::tola_output_to_url::data()),
+        "output-url",
+        Func::from(super::natives::tola_output_url::data()),
     );
     host.define(
         "asset-url",

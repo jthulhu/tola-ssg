@@ -497,28 +497,7 @@ pub(super) fn published_date(
     value: &Value,
     field: &str,
 ) -> Result<atom_syndication::FixedDateTime, SeoDeclarationError> {
-    let text = match value {
-        Value::Datetime(datetime) => crate::seo::date::to_rfc3339(datetime).ok_or_else(|| {
-            declaration
-                .invalid(
-                    field,
-                    "datetime must include a complete date (year, month, and day)",
-                )
-                .with_help("Give the time in UTC with hour, minute, and second")
-        })?,
-        Value::Str(text) => text.to_string(),
-        _ => {
-            return Err(declaration.expected(
-                field,
-                "datetime or RFC 3339 string with timezone",
-                value,
-            ));
-        }
-    };
-    text.parse().map_err(|_| {
-        declaration.invalid(
-            field,
-            "expected a valid RFC 3339 timestamp with timezone, such as 2026-09-01T12:00:00Z",
-        )
-    })
+    tola_packages::date::Timestamp::parse(value)
+        .map(|timestamp| timestamp.to_fixed())
+        .map_err(|error| declaration.invalid(field, error.to_string()))
 }

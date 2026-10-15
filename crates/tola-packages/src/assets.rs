@@ -48,7 +48,7 @@ pub(super) fn tola_asset_url(
             declared_url.span,
             "`{}` is not an asset URL this site publishes",
             url_path.as_str();
-            hint: "add it to `assets.files` in `tola.toml` as `{{ source = \"…\", url = \"{}\" }}`",
+            hint: "add it to `assets.files` in the site configuration as `{{ source = \"…\", url = \"{}\" }}`",
             url_path.as_str();
             hint: "check the member path under a `assets.trees` source"
         ),

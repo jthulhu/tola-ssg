@@ -1,6 +1,6 @@
 // The caller passes its own `check` and `issue`, so these rules reuse the core's absence and
 // provenance handling.
-#let rules(check, issue) = {
+#let rules(check, issue, require) = {
   let length-of(value) = {
     if type(value) == str { return value.clusters().len() }
     if type(value) == array or type(value) == dictionary { return value.len() }
@@ -8,9 +8,9 @@
   }
 
   let min-length(member, minimum) = {
-    assert(
+    require(
       type(minimum) == int and minimum >= 0,
-      message: "min-length: `minimum` must be a nonnegative integer",
+      message: "min-length: `minimum` must be a nonnegative integer; found `" + repr(minimum) + "`",
     )
     check(member, value => {
       let value-length = length-of(value)
@@ -23,9 +23,9 @@
   }
 
   let max-length(member, maximum) = {
-    assert(
+    require(
       type(maximum) == int and maximum >= 0,
-      message: "max-length: `maximum` must be a nonnegative integer",
+      message: "max-length: `maximum` must be a nonnegative integer; found `" + repr(maximum) + "`",
     )
     check(member, value => {
       let value-length = length-of(value)
@@ -38,9 +38,9 @@
   }
 
   let matches(member, expression) = {
-    assert(
+    require(
       type(expression) == regex,
-      message: "matches: `expression` must be a regular expression",
+      message: "matches: `expression` must be a regular expression; found `" + repr(type(expression)) + "`",
     )
     check(member, value => {
       if type(value) != str {
@@ -55,9 +55,9 @@
   let is-nan(value) = type(value) == float and value.is-nan()
 
   let at-least(member, minimum) = {
-    assert(
+    require(
       is-number(minimum) and not is-nan(minimum),
-      message: "at-least: `minimum` must be an integer or float other than NaN",
+      message: "at-least: `minimum` must be an integer or float other than NaN; found `" + repr(minimum) + "`",
     )
     check(member, value => {
       if not is-number(value) {
@@ -69,9 +69,9 @@
   }
 
   let at-most(member, maximum) = {
-    assert(
+    require(
       is-number(maximum) and not is-nan(maximum),
-      message: "at-most: `maximum` must be an integer or float other than NaN",
+      message: "at-most: `maximum` must be an integer or float other than NaN; found `" + repr(maximum) + "`",
     )
     check(member, value => {
       if not is-number(value) {

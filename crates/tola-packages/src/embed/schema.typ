@@ -28,6 +28,9 @@
 // becomes an Issue. Callbacks may run again when an enclosing Typst context is reevaluated, so
 // every parse starts fresh.
 //
+// Parse where a value enters: the root program parses all source metadata up front, and
+// selection and templates then read the parsed fields without checking them again.
+//
 // Declarations and parsing work on values alone. For source metadata, use `@tola/source`'s
 // `parse-sources`.
 
@@ -35,5 +38,5 @@
   any, schema, optional, nullable, literal, enum-of, array-of, dictionary-of, one-or-many,
   tuple, lazy, union, variant, trim, non-empty, refine, check, map, convert, describe, inspect,
   parse, try-parse, ok, err, issue, format-issues, min-length, max-length, matches,
-  at-least, at-most, email, ipv4, ipv6, ip, http-url, https-url,
+  at-least, at-most, email, ipv4, ipv6, ip, http-url, https-url, url-path, date, timestamp,
 )

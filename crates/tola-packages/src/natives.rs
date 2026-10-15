@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use typst::World;
 use typst::comemo::Tracked;
 use typst::diag::{At, SourceResult, bail};
+use typst::ecow::eco_vec;
 use typst::engine::Engine;
 use typst::foundations::{Array, Context, Dict, IntoValue, Str, Value, func};
 use typst::introspection::{DocumentIntrospection, PathIntrospection, here};
@@ -183,7 +184,7 @@ pub(super) fn tola_slug(
 }
 
 #[func]
-pub(super) fn tola_route(span: Span, segments: Array) -> SourceResult<Str> {
+pub(super) fn tola_join_route(span: Span, segments: Array) -> SourceResult<Str> {
     let segments = route_segments_from_array(&segments).at(span)?;
     let mut route = String::from("/");
     for (position, segment) in segments.iter().enumerate() {
@@ -225,15 +226,19 @@ fn route_segments_from_array(segments: &Array) -> Result<Vec<String>, String> {
 }
 
 #[func]
-pub(super) fn tola_route_to_output(route: Spanned<Str>) -> SourceResult<Str> {
-    let route = tola_address::UrlPath::from_decoded(route.v.as_str())
-        .map_err(|error| error.to_string())
-        .at(route.span)?;
+pub(super) fn tola_output_of(route: Spanned<Str>) -> SourceResult<Str> {
+    let route = tola_address::UrlPath::from_decoded(route.v.as_str()).map_err(|error| {
+        eco_vec![crate::diagnostic::package_error(
+            route.span,
+            TolaPackage::Address,
+            format!("`output-of`: `route` is invalid: {error}"),
+        )]
+    })?;
     Ok(tola_address::OutputPath::from_route(&route).as_str().into())
 }
 
 #[func]
-pub(super) fn tola_output_to_route(output: Spanned<Str>) -> SourceResult<Str> {
+pub(super) fn tola_route_of(output: Spanned<Str>) -> SourceResult<Str> {
     let output = tola_address::OutputPath::parse(output.v.as_str())
         .map_err(|error| error.to_string())
         .at(output.span)?;
@@ -241,7 +246,7 @@ pub(super) fn tola_output_to_route(output: Spanned<Str>) -> SourceResult<Str> {
 }
 
 #[func]
-pub(super) fn tola_output_to_url(
+pub(super) fn tola_output_url(
     span: Span,
     output: Spanned<Str>,
     #[named]
@@ -251,24 +256,49 @@ pub(super) fn tola_output_to_url(
     #[default]
     origin: Option<Str>,
 ) -> SourceResult<Str> {
-    let output = tola_address::OutputPath::parse(output.v.as_str())
-        .map_err(|error| error.to_string())
-        .at(output.span)?;
-    let mount = tola_address::SiteUrlMount::from_base_path(base_path.as_str())
-        .map_err(|error| error.to_string())
-        .at(span)?;
+    let output = tola_address::OutputPath::parse(output.v.as_str()).map_err(|error| {
+        eco_vec![crate::diagnostic::package_error(
+            output.span,
+            TolaPackage::Address,
+            format!("`output-url`: `output` is invalid: {error}"),
+        )]
+    })?;
+    let mount =
+        tola_address::SiteUrlMount::from_base_path(base_path.as_str()).map_err(|error| {
+            use tola_address::SiteUrlMountError;
+            let reason = match error {
+                SiteUrlMountError::InvalidBasePath(reason) => {
+                    format!("is not a valid URL path: {reason}")
+                }
+                SiteUrlMountError::MissingTrailingSlash => "must end with `/`".to_owned(),
+                SiteUrlMountError::ReservedRoot => {
+                    "must stay outside `_tola`, the namespace Tola reserves".to_owned()
+                }
+            };
+            eco_vec![crate::diagnostic::package_error(
+                span,
+                TolaPackage::Address,
+                format!("`output-url`: `base-path` {reason}"),
+            )]
+        })?;
     let origin = origin
         .as_ref()
         .map(|origin| {
             let origin = tola_address::SiteOrigin::parse(origin.as_str())
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| format!("`output-url`: `origin` {error}"))?;
             if origin.base_path().is_some() {
-                return Err("`origin` must name only an http/https origin; pass the deployment path with `base-path`".to_owned());
+                return Err("`output-url`: `origin` must name only an http/https origin; pass the deployment path with `base-path`".to_owned());
             }
             Ok(origin)
         })
         .transpose()
-        .at(span)?;
+        .map_err(|message| {
+            eco_vec![crate::diagnostic::package_error(
+                span,
+                TolaPackage::Address,
+                message,
+            )]
+        })?;
     let route = tola_address::route_for_output(&output);
     Ok(tola_address::browser_url(&route, &mount, origin.as_ref()).into())
 }
@@ -279,6 +309,63 @@ pub(super) fn tola_decode_url_path(url_path: Spanned<Str>) -> SourceResult<Str> 
         .map_err(|error| error.to_string())
         .at(url_path.span)?;
     Ok(path.as_str().into())
+}
+
+#[func]
+pub(super) fn tola_parse_url_path(url_path: Str) -> Dict {
+    schema_conversion(
+        tola_address::UrlPath::parse(url_path.as_str()).map(|path| path.as_str().to_owned()),
+        "schema.url-path",
+    )
+}
+
+#[func]
+pub(super) fn tola_parse_date(value: Value) -> Dict {
+    schema_conversion(crate::date::parse_date(&value), "schema.date")
+}
+
+#[func]
+pub(super) fn tola_parse_timestamp(value: Value) -> Dict {
+    schema_conversion(
+        crate::date::Timestamp::parse(&value).map(|timestamp| {
+            let mut fields = Dict::new();
+            fields.insert("rfc3339".into(), timestamp.rfc3339().into_value());
+            fields.insert("unix-seconds".into(), timestamp.unix_seconds().into_value());
+            fields.insert("subsecond".into(), timestamp.subsecond().into_value());
+            fields
+        }),
+        "schema.timestamp",
+    )
+}
+
+// A conversion failure stays an Issue until its schema supplies the field and source.
+fn schema_conversion<T: IntoValue, E: std::fmt::Display>(
+    converted: Result<T, E>,
+    code: &str,
+) -> Dict {
+    let mut parsed = Dict::new();
+    match converted {
+        Ok(value) => {
+            parsed.insert("ok".into(), true.into_value());
+            parsed.insert("value".into(), value.into_value());
+        }
+        Err(error) => {
+            let mut issue = Dict::new();
+            issue.insert("code".into(), code.into_value());
+            issue.insert("path".into(), Array::new().into_value());
+            issue.insert("message".into(), error.to_string().into_value());
+            issue.insert("notes".into(), Array::new().into_value());
+            issue.insert("children".into(), Array::new().into_value());
+            parsed.insert("ok".into(), false.into_value());
+            parsed.insert(
+                "issues".into(),
+                std::iter::once(issue.into_value())
+                    .collect::<Array>()
+                    .into_value(),
+            );
+        }
+    }
+    parsed
 }
 
 #[cfg(test)]

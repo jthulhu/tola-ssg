@@ -658,9 +658,9 @@ mod tests {
         std::fs::write(
             directory.path().join("site.typ"),
             r#"#import "@tola/source:0.0.0": all-sources
-#import "@tola/address:0.0.0": route, route-to-output
+#import "@tola/address:0.0.0": join-route, output-of
 #for source in all-sources() {
-  document(route-to-output(route(source.route-segments)))[#include source.file]
+  document(output-of(join-route(source.route-segments)))[#include source.file]
 }"#,
         )
         .unwrap();
@@ -984,6 +984,15 @@ mod tests {
 #import "@tola/document:0.0.0": current-document
 #context [#current-document().route]
 = Unsaved body"#,
+                None,
+            ),
+            (
+                "a source reads the occurrence channel",
+                None,
+                "probe.typ",
+                r#"#import "@tola/document:0.0.0": references
+#context [#references().len()]
+= Unsaved source"#,
                 None,
             ),
             (

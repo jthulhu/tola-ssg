@@ -817,6 +817,94 @@ authors = [{ name = "Alice", email = "alice@example.com", url = "https://example
     }
 
     #[test]
+    fn sitemap_dates_keep_their_forms() {
+        let outputs = render(
+            r#"
+#document("index.html")[Home]
+#for (output, lastmod) in (
+  ("native-date.xml", datetime(year: 2024, month: 2, day: 29)),
+  ("string-date.xml", "2024-02-29"),
+  ("native-time.xml", datetime(year: 2026, month: 9, day: 1, hour: 6, minute: 7, second: 8)),
+  ("string-time.xml", "2026-09-01T06:07:08.123456789123+08:00"),
+) {
+  sitemap(output: output, targets: ((target: "index.html", lastmod: lastmod),))
+}
+"#,
+        );
+        for (path, date) in [
+            ("/native-date.xml", "2024-02-29"),
+            ("/string-date.xml", "2024-02-29"),
+            ("/native-time.xml", "2026-09-01T06:07:08Z"),
+            ("/string-time.xml", "2026-09-01T06:07:08.123456789+08:00"),
+        ] {
+            let xml = std::str::from_utf8(output(&outputs, path)).unwrap();
+            let document = roxmltree::Document::parse(xml).unwrap();
+            let lastmod = document
+                .descendants()
+                .find(|node| {
+                    node.has_tag_name(("http://www.sitemaps.org/schemas/sitemap/0.9", "lastmod"))
+                })
+                .unwrap();
+            assert_eq!(lastmod.text(), Some(date));
+        }
+    }
+
+    #[test]
+    fn feed_dates_keep_offset_and_fraction() {
+        let outputs = render(
+            r#"
+#document("index.html", title: [Home])[Home]
+#feed(format: "json", output: "feed.json", entries: ((
+  id: "urn:post", target: "index.html",
+  published: "2026-09-01T06:07:08.123456789123+08:00",
+  updated: datetime(year: 2026, month: 9, day: 2),
+),))
+"#,
+        );
+        let json: serde_json::Value =
+            serde_json::from_slice(output(&outputs, "/feed.json")).unwrap();
+        assert_eq!(
+            json["items"][0]["date_published"],
+            "2026-09-01T06:07:08.123456789+08:00"
+        );
+        assert_eq!(
+            json["items"][0]["date_modified"],
+            "2026-09-02T00:00:00+00:00"
+        );
+    }
+
+    #[test]
+    fn date_errors_name_declaration_fields() {
+        for date in [
+            "\" 2026-09-01T06:07:08Z\"",
+            "\"2026-09-01T06:07:08+0800\"",
+            "\"2016-12-31T23:59:60Z\"",
+            "\"2026-02-29\"",
+            "datetime(hour: 6, minute: 7, second: 8)",
+        ] {
+            for (declaration, field) in [
+                (
+                    format!(
+                        "#feed(entries: ((id: \"urn:post\", target: \"index.html\", published: {date}),))"
+                    ),
+                    "/entries/0/published",
+                ),
+                (
+                    format!("#sitemap(targets: ((target: \"index.html\", lastmod: {date}),))"),
+                    "/targets/0/lastmod",
+                ),
+            ] {
+                let error = declaration_error(
+                    &format!("#document(\"index.html\", title: [Home])[Home]\n{declaration}"),
+                    "[site]\norigin = \"https://example.com\"\ntitle = \"Notes\"",
+                );
+                assert!(error.to_string().contains(field), "{error}");
+                assert!(error.source_diagnostic().source().span.id().is_some());
+            }
+        }
+    }
+
+    #[test]
     fn feed_target_needs_exported_anchor() {
         let error = declaration_error(
             r#"

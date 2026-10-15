@@ -38,7 +38,8 @@ pub const CAPABILITY_OBSERVATION_PATH: &str = ".tola-capability";
 /// The virtual directory holding one observation per discovered source.
 pub const SOURCE_OBSERVATION_DIRECTORY: &str = ".tola-source";
 
-/// The virtual directory holding one observation per configured icon file.
+/// The virtual directory holding one observation per configured icon file, and one tracked name
+/// list per configured collection as `.names` beside its icons.
 pub const ICON_OBSERVATION_DIRECTORY: &str = ".tola-icon";
 
 /// The virtual directory holding one observation per published icon request.

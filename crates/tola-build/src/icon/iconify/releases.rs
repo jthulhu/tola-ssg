@@ -45,12 +45,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "at-icons",
-        releases: &[PinnedRelease {
-            version: "1.2.3",
-            sha256: Sha256Digest::from_hex(
-                "dad7a77ecc5aca653841d392e64c578d910bcad846d41d29390a3b99338d8675",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.3",
+                sha256: Sha256Digest::from_hex(
+                    "dad7a77ecc5aca653841d392e64c578d910bcad846d41d29390a3b99338d8675",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.4",
+                sha256: Sha256Digest::from_hex(
+                    "b8a8f89216ab33bc54c4267f8c2d0171a3b24d793cffd95df6debac992af96ce",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "basil",
@@ -144,12 +152,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "carbon",
-        releases: &[PinnedRelease {
-            version: "1.2.27",
-            sha256: Sha256Digest::from_hex(
-                "0f0247d037142942711770c67885962adf6479fbd3d2fde2a188ac23b3826d0a",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.27",
+                sha256: Sha256Digest::from_hex(
+                    "0f0247d037142942711770c67885962adf6479fbd3d2fde2a188ac23b3826d0a",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.28",
+                sha256: Sha256Digest::from_hex(
+                    "770429a6c4c94226d2ed3dfe236c758fe731415fe39961363403fd31d65359d9",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "catppuccin",
@@ -162,12 +178,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "cbi",
-        releases: &[PinnedRelease {
-            version: "1.2.59",
-            sha256: Sha256Digest::from_hex(
-                "6cbbe5aa0ba162eeae8f2f05cb04876b88d469db0dda21a0a5ae784243018320",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.59",
+                sha256: Sha256Digest::from_hex(
+                    "6cbbe5aa0ba162eeae8f2f05cb04876b88d469db0dda21a0a5ae784243018320",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.64",
+                sha256: Sha256Digest::from_hex(
+                    "3283787ff23ec48fe55f8a826b53bee3e65b3a897fa478e5e5e0cd28ce9ccb39",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "charm",
@@ -216,12 +240,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "circle-flags",
-        releases: &[PinnedRelease {
-            version: "1.2.11",
-            sha256: Sha256Digest::from_hex(
-                "102f1a60ae4485ec9d61d278ebf22c08920513b4712bf2ac358965502fdec210",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.11",
+                sha256: Sha256Digest::from_hex(
+                    "102f1a60ae4485ec9d61d278ebf22c08920513b4712bf2ac358965502fdec210",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.12",
+                sha256: Sha256Digest::from_hex(
+                    "00642767199d84bed946b53cd19a478ec4deb52ab2509ec5983394c225511876",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "circum",
@@ -252,12 +284,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "codicon",
-        releases: &[PinnedRelease {
-            version: "1.2.73",
-            sha256: Sha256Digest::from_hex(
-                "fb26e5ed712e21a7f5568d51ff1102b9652ee9bd4c9dbd84a8ba26d0e4dffdc9",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.73",
+                sha256: Sha256Digest::from_hex(
+                    "fb26e5ed712e21a7f5568d51ff1102b9652ee9bd4c9dbd84a8ba26d0e4dffdc9",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.74",
+                sha256: Sha256Digest::from_hex(
+                    "81e9a02fc6fc975dfcc8207040e502bd97bbedbf4f23b212a3f4fb66c5014a78",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "covid",
@@ -306,21 +346,37 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "devicon",
-        releases: &[PinnedRelease {
-            version: "1.2.67",
-            sha256: Sha256Digest::from_hex(
-                "40a3a64efd037b44fa55c4238b6b0cbf21b8ee5a8740989067fece5e3e5bcd29",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.67",
+                sha256: Sha256Digest::from_hex(
+                    "40a3a64efd037b44fa55c4238b6b0cbf21b8ee5a8740989067fece5e3e5bcd29",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.71",
+                sha256: Sha256Digest::from_hex(
+                    "a2ddcf92595cf38c1528d53d228c81b989ae24369c49cd3769bee723c307abac",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "devicon-plain",
-        releases: &[PinnedRelease {
-            version: "1.2.61",
-            sha256: Sha256Digest::from_hex(
-                "bca364c5cd4ab117cb5d3c1a54cfdd682639910a8b3cd8d4224d4bab95c38866",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.61",
+                sha256: Sha256Digest::from_hex(
+                    "bca364c5cd4ab117cb5d3c1a54cfdd682639910a8b3cd8d4224d4bab95c38866",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.62",
+                sha256: Sha256Digest::from_hex(
+                    "968c4cad1cca8244b7b3306ef18586e0cf0dc8e766b5e9ea17eab27cf1545153",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "dinkie-icons",
@@ -630,12 +686,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "fluent",
-        releases: &[PinnedRelease {
-            version: "1.2.58",
-            sha256: Sha256Digest::from_hex(
-                "86397ed4772c5acb3a655f8c16e6f6b2bcc1d1c1ad845f7625b72a992b719c43",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.58",
+                sha256: Sha256Digest::from_hex(
+                    "86397ed4772c5acb3a655f8c16e6f6b2bcc1d1c1ad845f7625b72a992b719c43",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.60",
+                sha256: Sha256Digest::from_hex(
+                    "ed583be86e15810d0678cf6e192cec0182299a02c77c662fea47fc650cc620ae",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "fluent-color",
@@ -738,21 +802,37 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "garden",
-        releases: &[PinnedRelease {
-            version: "1.2.6",
-            sha256: Sha256Digest::from_hex(
-                "2b2b165e215c7c9ee719a98374be51c748416d7fb1c64c2f057d4f92c40f76d0",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.6",
+                sha256: Sha256Digest::from_hex(
+                    "2b2b165e215c7c9ee719a98374be51c748416d7fb1c64c2f057d4f92c40f76d0",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.8",
+                sha256: Sha256Digest::from_hex(
+                    "826b283ef53e1a437aeaebe2fde60bbe5f547046f40a3489ca1fc0ca0c0b0351",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "gcp",
-        releases: &[PinnedRelease {
-            version: "1.2.2",
-            sha256: Sha256Digest::from_hex(
-                "54734c385581234eb88a7e9d9f74722767d3c1d601c2584842ee15e3ccd90a7f",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.2",
+                sha256: Sha256Digest::from_hex(
+                    "54734c385581234eb88a7e9d9f74722767d3c1d601c2584842ee15e3ccd90a7f",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.3",
+                sha256: Sha256Digest::from_hex(
+                    "7bb3cebf30a93085762e300ff7f327358523fcb23b65a39c789ce755f6a8b554",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "geo",
@@ -981,12 +1061,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "iconoir",
-        releases: &[PinnedRelease {
-            version: "1.2.11",
-            sha256: Sha256Digest::from_hex(
-                "e1788785bf4708ed39bce81df9d9514090b79b1d7b33fc15e969a95a1acf5eb9",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.11",
+                sha256: Sha256Digest::from_hex(
+                    "e1788785bf4708ed39bce81df9d9514090b79b1d7b33fc15e969a95a1acf5eb9",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.12",
+                sha256: Sha256Digest::from_hex(
+                    "de804adb26ed7536624081381492d4b83d00d9534ef0a35f4b69097c9dc9641e",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "icons8",
@@ -1026,12 +1114,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "ix",
-        releases: &[PinnedRelease {
-            version: "1.2.12",
-            sha256: Sha256Digest::from_hex(
-                "fe4e24bce276a430aed1dedd188742a02ce309a1ee9c2145814734d016c39f53",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.12",
+                sha256: Sha256Digest::from_hex(
+                    "fe4e24bce276a430aed1dedd188742a02ce309a1ee9c2145814734d016c39f53",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.13",
+                sha256: Sha256Digest::from_hex(
+                    "e1cd9dc4198ef998fcf5f186879a04a3192ecd6cfdd1542d6199d6e93075e1aa",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "jam",
@@ -1053,12 +1149,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "keyline-icons",
-        releases: &[PinnedRelease {
-            version: "1.2.8",
-            sha256: Sha256Digest::from_hex(
-                "64413baa157cc8dc01a363a77bfeaeff193a251de6b1abccd20aa73690bd9242",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.8",
+                sha256: Sha256Digest::from_hex(
+                    "64413baa157cc8dc01a363a77bfeaeff193a251de6b1abccd20aa73690bd9242",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.15",
+                sha256: Sha256Digest::from_hex(
+                    "5e8eadf2325b7b9e0399238823de5c2cba69e51140b70ac6a3f7ec3e8da62d9b",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "la",
@@ -1098,12 +1202,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "logos",
-        releases: &[PinnedRelease {
-            version: "1.2.14",
-            sha256: Sha256Digest::from_hex(
-                "3eba737ec35e422b9050933a4efb461ad5d4e6ccce781bfbe14ceba533538e50",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.14",
+                sha256: Sha256Digest::from_hex(
+                    "3eba737ec35e422b9050933a4efb461ad5d4e6ccce781bfbe14ceba533538e50",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.16",
+                sha256: Sha256Digest::from_hex(
+                    "076f213b65c70e166aefd1f2b5cfddc8104e1b6992aa1ee8002cb6b15f1a7c59",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "ls",
@@ -1125,12 +1237,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "lucide",
-        releases: &[PinnedRelease {
-            version: "1.2.136",
-            sha256: Sha256Digest::from_hex(
-                "8cd40caac3fd9882dd9380b0e0fffa1acaa3c8bd86c40c2b70d764560e707375",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.136",
+                sha256: Sha256Digest::from_hex(
+                    "8cd40caac3fd9882dd9380b0e0fffa1acaa3c8bd86c40c2b70d764560e707375",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.144",
+                sha256: Sha256Digest::from_hex(
+                    "49fd3c82b23279b5c86d103fdad3aceb3409f46bfc38bb818e84cf7ec01ac6a4",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "lucide-lab",
@@ -1188,30 +1308,54 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "material-icon-theme",
-        releases: &[PinnedRelease {
-            version: "1.2.70",
-            sha256: Sha256Digest::from_hex(
-                "fdaae0137875baa76fd8e1ebf05e80d8c91ef2850c560cb1884da5870f8092c7",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.70",
+                sha256: Sha256Digest::from_hex(
+                    "fdaae0137875baa76fd8e1ebf05e80d8c91ef2850c560cb1884da5870f8092c7",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.72",
+                sha256: Sha256Digest::from_hex(
+                    "850a1a99cdd81e00ffc85c9c031c6b0e5217f2391500693c772e4e3824688550",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "material-symbols",
-        releases: &[PinnedRelease {
-            version: "1.2.93",
-            sha256: Sha256Digest::from_hex(
-                "891b1209b0c27f7995a58bd4ae55fe7f2b8607791f164244f27e70e1cae52d51",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.93",
+                sha256: Sha256Digest::from_hex(
+                    "891b1209b0c27f7995a58bd4ae55fe7f2b8607791f164244f27e70e1cae52d51",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.95",
+                sha256: Sha256Digest::from_hex(
+                    "d16a2f362aa9b61ec68e0b0087e103e54deaf727168b9262dc5099fe594af59a",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "material-symbols-light",
-        releases: &[PinnedRelease {
-            version: "1.2.94",
-            sha256: Sha256Digest::from_hex(
-                "50f972ca896fadabb8347a10aeabafa474700630805a98929cc1b5f4960d961c",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.94",
+                sha256: Sha256Digest::from_hex(
+                    "50f972ca896fadabb8347a10aeabafa474700630805a98929cc1b5f4960d961c",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.96",
+                sha256: Sha256Digest::from_hex(
+                    "22455c447ed538bc59677994164458e38d5acda457bc0dc6bbf5e883de169acf",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "mdi",
@@ -1260,12 +1404,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "meteor-icons",
-        releases: &[PinnedRelease {
-            version: "1.2.8",
-            sha256: Sha256Digest::from_hex(
-                "a5d7499cb4a9da698c5e821153a12a3594491426e2587f8d09ba6f95ae8d197d",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.8",
+                sha256: Sha256Digest::from_hex(
+                    "a5d7499cb4a9da698c5e821153a12a3594491426e2587f8d09ba6f95ae8d197d",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.10",
+                sha256: Sha256Digest::from_hex(
+                    "da296cc45ac2a047088682a60a1c744130842900e635745716241d4375ce3055",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "mi",
@@ -1323,12 +1475,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "noto",
-        releases: &[PinnedRelease {
-            version: "1.2.8",
-            sha256: Sha256Digest::from_hex(
-                "7f2e0c1a48117b0414b7a9a611f3029faa41398512f12e77e74f99b784b79ba1",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.8",
+                sha256: Sha256Digest::from_hex(
+                    "7f2e0c1a48117b0414b7a9a611f3029faa41398512f12e77e74f99b784b79ba1",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.9",
+                sha256: Sha256Digest::from_hex(
+                    "9eac6ef4e7ec122b6f0e7ac281d61008afdbc720d0ce861e398b939daaa347c6",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "noto-v1",
@@ -1350,12 +1510,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "octicon",
-        releases: &[PinnedRelease {
-            version: "1.2.36",
-            sha256: Sha256Digest::from_hex(
-                "e3f79ec08b924d9d5f8d9582a6713fba005ebf014fd980100bde54aa4ed75518",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.36",
+                sha256: Sha256Digest::from_hex(
+                    "e3f79ec08b924d9d5f8d9582a6713fba005ebf014fd980100bde54aa4ed75518",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.39",
+                sha256: Sha256Digest::from_hex(
+                    "79ba23f509fd0119324a80fe6a407395a8751bac4b6adc7298e595b700a49fbc",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "oi",
@@ -1467,12 +1635,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "pinhead",
-        releases: &[PinnedRelease {
-            version: "1.2.31",
-            sha256: Sha256Digest::from_hex(
-                "c6eaf068fd6e54a54aa54f1b8425146339c72fb560addc34339b6732007bbf95",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.31",
+                sha256: Sha256Digest::from_hex(
+                    "c6eaf068fd6e54a54aa54f1b8425146339c72fb560addc34339b6732007bbf95",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.34",
+                sha256: Sha256Digest::from_hex(
+                    "5a11cc497854ae3c22b81b71d3acc1cd4b7185428076012ebd37426414954744",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "pixel",
@@ -1485,12 +1661,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "pixelarticons",
-        releases: &[PinnedRelease {
-            version: "1.2.9",
-            sha256: Sha256Digest::from_hex(
-                "49b009b520f4042ebb9190b0fcaa5b2f5ccb4572e04efa4f8b1c0d1e671559cb",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.9",
+                sha256: Sha256Digest::from_hex(
+                    "49b009b520f4042ebb9190b0fcaa5b2f5ccb4572e04efa4f8b1c0d1e671559cb",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.10",
+                sha256: Sha256Digest::from_hex(
+                    "49b009b520f4042ebb9190b0fcaa5b2f5ccb4572e04efa4f8b1c0d1e671559cb",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "prime",
@@ -1557,12 +1741,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "reicon",
-        releases: &[PinnedRelease {
-            version: "1.2.5",
-            sha256: Sha256Digest::from_hex(
-                "8f05051725826399eed28a5a8f9de79c5e9dc3d23ba042fb1dff01722bb7b55c",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.5",
+                sha256: Sha256Digest::from_hex(
+                    "8f05051725826399eed28a5a8f9de79c5e9dc3d23ba042fb1dff01722bb7b55c",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.6",
+                sha256: Sha256Digest::from_hex(
+                    "09ae7db4a7129df9a4a00ad75c9917cb7ba005f0619fa42953e3584cf82e8122",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "ri",
@@ -1593,12 +1785,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "selfhst",
-        releases: &[PinnedRelease {
-            version: "1.2.21",
-            sha256: Sha256Digest::from_hex(
-                "5c409ac19ed7c6fea0e6ad21b12019566f2110c68227a2792461d76e69e1b590",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.21",
+                sha256: Sha256Digest::from_hex(
+                    "5c409ac19ed7c6fea0e6ad21b12019566f2110c68227a2792461d76e69e1b590",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.24",
+                sha256: Sha256Digest::from_hex(
+                    "50b7a3c2e214ac328a1a2ef9406e1cff297c22b493255045fe21a9888f60432c",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "si",
@@ -1620,21 +1820,37 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "sidekickicons",
-        releases: &[PinnedRelease {
-            version: "1.2.1",
-            sha256: Sha256Digest::from_hex(
-                "abdb67e3a21be4ff8bd18ca6ea28f61d890e46c0babac36f688c73a7547dceaf",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.1",
+                sha256: Sha256Digest::from_hex(
+                    "abdb67e3a21be4ff8bd18ca6ea28f61d890e46c0babac36f688c73a7547dceaf",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.2",
+                sha256: Sha256Digest::from_hex(
+                    "67b727a5f6f9ba67790fd9c31cf64a65993c6786cef0523873b250daa3de7e73",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "simple-icons",
-        releases: &[PinnedRelease {
-            version: "1.2.97",
-            sha256: Sha256Digest::from_hex(
-                "c7b597632f2aac9ceaf8d69eff7836c3e1c950e2c220f7bdacc815a5dd940bf0",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.97",
+                sha256: Sha256Digest::from_hex(
+                    "c7b597632f2aac9ceaf8d69eff7836c3e1c950e2c220f7bdacc815a5dd940bf0",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.100",
+                sha256: Sha256Digest::from_hex(
+                    "d2a96abe798adca0ab4a110e7fe400c660ff2ea2c509341c20fc6aef3617288b",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "simple-line-icons",
@@ -1656,12 +1872,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "solar",
-        releases: &[PinnedRelease {
-            version: "1.2.12",
-            sha256: Sha256Digest::from_hex(
-                "02c0032f6a96c5c6f3ad9e3f5b984303d74ef0e20657499f297ca39252bda71e",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.12",
+                sha256: Sha256Digest::from_hex(
+                    "02c0032f6a96c5c6f3ad9e3f5b984303d74ef0e20657499f297ca39252bda71e",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.13",
+                sha256: Sha256Digest::from_hex(
+                    "2eb44cfa214f8f0cba47cd1d994cb8342b04a12a2b25262feed63efef49b0ca8",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "stash",
@@ -1881,12 +2105,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "tabler",
-        releases: &[PinnedRelease {
-            version: "1.2.40",
-            sha256: Sha256Digest::from_hex(
-                "74cb008204f4e6263f714c949ab554e561deafac3d493f5765c604aa54c9cb9c",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.40",
+                sha256: Sha256Digest::from_hex(
+                    "74cb008204f4e6263f714c949ab554e561deafac3d493f5765c604aa54c9cb9c",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.42",
+                sha256: Sha256Digest::from_hex(
+                    "1005dcb306f2dbc12711857ca1603de679a9cb50140642bcc8f2051830d4410b",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "tdesign",
@@ -1917,39 +2149,71 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "thesvg",
-        releases: &[PinnedRelease {
-            version: "1.2.7",
-            sha256: Sha256Digest::from_hex(
-                "7f48efdd7d2e97e90d8c77436b8fa64ce850294a27199d73f56218d0ebfeb47e",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.7",
+                sha256: Sha256Digest::from_hex(
+                    "7f48efdd7d2e97e90d8c77436b8fa64ce850294a27199d73f56218d0ebfeb47e",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.10",
+                sha256: Sha256Digest::from_hex(
+                    "5fcf7679fb8a98dbc445b5b5a11beb04e45c9075c072ac8ec5ebb30b8a28ccea",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "thesvg-color",
-        releases: &[PinnedRelease {
-            version: "1.2.13",
-            sha256: Sha256Digest::from_hex(
-                "5751e59559f5c1bcbdc740863fe69c38b176a9d9ef84dbb25b43f31c95db6f9a",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.13",
+                sha256: Sha256Digest::from_hex(
+                    "5751e59559f5c1bcbdc740863fe69c38b176a9d9ef84dbb25b43f31c95db6f9a",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.17",
+                sha256: Sha256Digest::from_hex(
+                    "847aa5c2e7d8e2ff4a2474a3f832454bca245caeaa7081fee11ff1fbb36d3554",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "token",
-        releases: &[PinnedRelease {
-            version: "1.2.41",
-            sha256: Sha256Digest::from_hex(
-                "c2eb8b186649c569c90b5b1893ab28d4b068415c25c0a84e78b8e32b4dd00179",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.41",
+                sha256: Sha256Digest::from_hex(
+                    "c2eb8b186649c569c90b5b1893ab28d4b068415c25c0a84e78b8e32b4dd00179",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.42",
+                sha256: Sha256Digest::from_hex(
+                    "58bf7de484cd1169a8544722cdd576dc5bfed22ff18e5e358c2e181cd41d41a4",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "token-branded",
-        releases: &[PinnedRelease {
-            version: "1.2.45",
-            sha256: Sha256Digest::from_hex(
-                "c89afdfbbfe28d335adf588934343ff95412376e0c2a1be0753b2e0c4762a391",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.45",
+                sha256: Sha256Digest::from_hex(
+                    "c89afdfbbfe28d335adf588934343ff95412376e0c2a1be0753b2e0c4762a391",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.46",
+                sha256: Sha256Digest::from_hex(
+                    "52048c530591858dba580b6cfd0a3989071ccd01ae4b9cca0b9968dead53b9be",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "topcoat",
@@ -2061,12 +2325,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "vscode-icons",
-        releases: &[PinnedRelease {
-            version: "1.2.81",
-            sha256: Sha256Digest::from_hex(
-                "65610db81723bbd7ed74b794d5ec8101ea5a36909e0300208a5f6c52943f39b8",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.81",
+                sha256: Sha256Digest::from_hex(
+                    "65610db81723bbd7ed74b794d5ec8101ea5a36909e0300208a5f6c52943f39b8",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.89",
+                sha256: Sha256Digest::from_hex(
+                    "115e42cc65a1c49ec272a90209d0aa5bf45cee57f3eb4690dcb18cd7555afefb",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "websymbol",
@@ -2106,12 +2378,20 @@ pub(super) const INDEXED_COLLECTIONS: &[IndexedCollection] = &[
     },
     IndexedCollection {
         name: "wordpress",
-        releases: &[PinnedRelease {
-            version: "1.2.23",
-            sha256: Sha256Digest::from_hex(
-                "f11b020bec01e2c12076b0ba3d517eb6d0d7c7e15ae0d294373a65ce5d38e488",
-            ),
-        }],
+        releases: &[
+            PinnedRelease {
+                version: "1.2.23",
+                sha256: Sha256Digest::from_hex(
+                    "f11b020bec01e2c12076b0ba3d517eb6d0d7c7e15ae0d294373a65ce5d38e488",
+                ),
+            },
+            PinnedRelease {
+                version: "1.2.26",
+                sha256: Sha256Digest::from_hex(
+                    "3fbe1d60b384166e5ec15295fd33d3cd57e2cee7a3431a98286218f81b0e962c",
+                ),
+            },
+        ],
     },
     IndexedCollection {
         name: "wpf",

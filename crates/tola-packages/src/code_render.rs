@@ -53,7 +53,7 @@ pub(super) fn tola_render_code(
     context: Tracked<Context>,
     /// The raw element the author's show rule replaced.
     raw: Content,
-    /// The theme carrier for the site's dark appearance, if one is configured.
+    /// The element naming the site's dark theme, if one is configured.
     dark: Option<Content>,
     /// HTML attributes for the element Tola renders code into.
     attrs: Dict,
@@ -73,7 +73,7 @@ pub(super) fn tola_render_code(
 
     let lines = element.lines.as_deref().unwrap_or_default();
     let dark = match dark {
-        Some(carrier) => Some(synthesize_dark(engine, &raw, &carrier, styles, span)?),
+        Some(dark_element) => Some(synthesize_dark(engine, &raw, &dark_element, styles, span)?),
         None => None,
     };
     let dark_lines = dark
@@ -102,22 +102,22 @@ pub(super) fn tola_render_code(
     )
 }
 
-/// Synthesize the dark appearance from a clone of `raw` that carries `carrier`'s loaded theme.
+/// Synthesize the dark appearance from a clone of `raw` that takes `dark_element`'s loaded theme.
 ///
 /// Every other field — text, syntaxes, tab size, align, block, lang — stays the primary's, so
 /// both appearances always describe the same text.
 fn synthesize_dark(
     engine: &mut Engine,
     raw: &Content,
-    carrier: &Content,
+    dark_element: &Content,
     styles: StyleChain,
     span: Span,
 ) -> SourceResult<Content> {
-    let carrier = carrier
+    let dark_element = dark_element
         .to_packed::<RawElem>()
         .ok_or("`dark-theme` must name a theme file")
         .at(span)?;
-    let theme = carrier.theme.get_cloned(styles);
+    let theme = dark_element.theme.get_cloned(styles);
     if !matches!(theme, Smart::Custom(Some(_))) {
         bail!(
             span,

@@ -87,24 +87,46 @@ joins the same compilation. Keep it at the site root; the scaffold's `site.typ` 
 with `select-pages(all-sources())`, emits each one with `page-template`, then closes with
 `not-found-template()`. The defaults below are what a site gets when it writes nothing:
 
-```toml
-[build]
-entry = \"site.typ\"
-content-dir = \"content\"
-publish-dir = \"public\"
-```
+`content-dir` defines source identity: `content/guide/install.typ` arrives in `all-sources()` as
+a source whose `path` field is `guide/install.typ`. The file layout does not affect `permalink`;
+the route segments it suggests are just the default route's segments, which you can replace with
+your own. Moving or renaming it changes that identity and those segments. The entry file is never
+a source; keep shared helpers and templates outside this directory so discovery does not treat
+them as content.
 
-`content-dir` is the identity root for content: a `.typ` file below it is one source, and its
-path below that directory is the source's identity — the `id` and `path` `all-sources()` reports,
-and the layout its default route segments follow. `content/guide/install.typ` therefore arrives
-as `guide/install.typ`, and renaming or moving the file changes its address. The entry file is
-never a source, and helpers and templates belong outside this directory so discovery does not
-pick them up.
+Discovery does not publish a page. The entry chooses which sources become documents and which
+output paths they use. For example, this converts the discovered segments to default output paths:
 
 ```typst
-#import \"@tola/address:0.0.0\": route, route-to-output
+#import \"@tola/address:0.0.0\": join-route, output-of
 #import \"@tola/source:0.0.0\": all-sources
-#let pages = all-sources().map(source => route-to-output(route(source.route-segments)))
+#let outputs = all-sources().map(source => output-of(join-route(source.route-segments)))
+```
+
+For example, the `tola init` scaffold's `select-pages` validates metadata, drops sources that
+declare `draft: true`, and slugifies each source's default `route-segments` field into the final
+route; these policies are yours to define and handle. Its schema parses `permalink` with
+`url-path`, so the selected metadata already holds a decoded route. That route overrides the
+file layout, keeping the URL unchanged when the source moves.
+
+```typst
+#let source-route(source) = {
+  if source.meta.permalink == none {
+    join-route(source.route-segments.map(segment => slugify(segment, language: site.language.lang)))
+  } else {
+    source.meta.permalink
+  }
+}
+
+#let select-pages(sources) = {
+  // Every source is validated here, drafts included, before choosing which to publish.
+  parse-sources(sources, page-schema)
+    .filter(source => not source.meta.draft)
+    .map(source => (
+      source: source,
+      output: output-of(source-route(source)),
+    ))
+}
 ```
 
 `publish-dir` belongs to Tola: each build replaces everything it owns there, recording what that
