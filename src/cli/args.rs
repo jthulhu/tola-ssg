@@ -232,7 +232,7 @@ pub enum Commands {
         packages: TypstPackageArgs,
     },
 
-    /// Print or export the Tola and Typst authoring skill.
+    /// Print or export the Tola site authoring skill.
     Skill(SkillArgs),
 
     /// Show resolved site paths and selected settings as JSON.

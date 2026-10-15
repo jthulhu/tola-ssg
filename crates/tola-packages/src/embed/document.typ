@@ -43,7 +43,7 @@
 /// Related: references, headings, @tola/source
 #import "@tola/host:0.0.0": current-document
 
-/// The references the Bundle wrote that reached the output as links, in Bundle order.
+/// The native `link` and `ref` occurrences that reached the output, in Bundle order.
 ///
 /// Call it inside `context`. Whether a reference counts is decided after show rules: a link whose
 /// show rules replace it with plain text or with raw HTML does not count, while a link a show rule
@@ -224,7 +224,12 @@
 /// The headings of the current document, in document order.
 ///
 /// Every heading is listed, including ones that `outlined: false` keeps out of Typst's
-/// `outline()`. A document with no headings returns an empty array.
+/// `outline()`. Filter by `outlined` when building a table of contents that follows `outline()`.
+/// A document with no headings returns an empty array.
+///
+/// The records describe native heading elements, independently of their final HTML representation.
+/// A show rule that returns plain text, an HTML wrapper, or nothing preserves the original
+/// heading's record.
 ///
 /// | Field | Meaning |
 /// | --- | --- |
