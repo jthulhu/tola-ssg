@@ -193,13 +193,20 @@ pub(crate) fn source_boundary(
     config: &crate::config::ResolvedSiteConfig,
     scope: InputScope,
 ) -> tola_typst::SourceBoundary {
-    let root = config.get_root();
+    source_boundary_with_exclusions(config.get_root(), scope, config.generated_exclusions())
+}
+
+pub(crate) fn source_boundary_with_exclusions(
+    root: &Path,
+    scope: InputScope,
+    exclusions: impl IntoIterator<Item = crate::config::GeneratedExclusion>,
+) -> tola_typst::SourceBoundary {
     let mut boundary = base_source_boundary(root, scope);
     // The output tree and the publication workspace beside it hold bytes Tola wrote, not inputs: a
     // read that reaches either would compile staged or stale output. Publication still resolves the
     // output root against its protected inputs, because that check owns the output layout rather
     // than read permission. A vendor candidate is granted back: it is the input being prepared.
-    for exclusion in config.generated_exclusions() {
+    for exclusion in exclusions {
         boundary = match exclusion.candidate {
             Some(candidate) => boundary.excluding_except(exclusion.directory, candidate),
             None => boundary.excluding(exclusion.directory),

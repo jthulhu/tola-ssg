@@ -297,7 +297,7 @@ impl CompiledSiteOutputs {
         cancellation.ensure_active()?;
         let references = crate::site::references::References::from_site(
             &index,
-            &config.url_mount(),
+            config.url_mount(),
             &self.producer_caches.site_program.world,
             cancellation,
             self.reference_reuse.as_ref(),

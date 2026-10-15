@@ -144,7 +144,7 @@ pub(super) fn respond(
         .as_ref()
         .map_or(initial_config, |site| site.config().as_ref());
     if reload_endpoint.is_some()
-        && request.uri().path() == crate::embed::dev::hotreload_browser_path(&config.url_mount())
+        && request.uri().path() == crate::embed::dev::hotreload_browser_path(config.url_mount())
     {
         return respond_hotreload_js(request);
     }
@@ -152,7 +152,7 @@ pub(super) fn respond(
         Some(site) => respond_published(request, site, reload_endpoint),
         None => respond_unpublished(
             request,
-            &initial_config.url_mount(),
+            initial_config.url_mount(),
             reload_endpoint,
             unpublished_html,
         ),
@@ -207,7 +207,7 @@ fn respond_published(
             respond_file(
                 request,
                 output,
-                &config.url_mount(),
+                config.url_mount(),
                 reload_endpoint,
                 site.outputs(),
                 &site.html,
@@ -227,7 +227,7 @@ fn respond_published(
         return respond_welcome(
             request,
             diagnostic,
-            &config.url_mount(),
+            config.url_mount(),
             reload_endpoint,
             site.manifest().revision(),
             site.page_availability(),
@@ -431,7 +431,7 @@ fn respond_not_found(
         let body = published_output_body(
             request.method(),
             output,
-            &config.url_mount(),
+            config.url_mount(),
             reload_endpoint,
             revision,
             html,
@@ -1165,7 +1165,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let config = site_config(directory.path(), "");
         let endpoint = reload_endpoint();
-        let runtime = crate::embed::dev::hotreload_browser_path(&config.url_mount());
+        let runtime = crate::embed::dev::hotreload_browser_path(config.url_mount());
         let page = super::respond(
             request("/"),
             None,

@@ -9,6 +9,7 @@ mod schema;
 pub mod section;
 mod source;
 
+pub(crate) use resolved::GeneratedExclusion;
 pub use resolved::ResolvedSiteConfig;
 pub use schema::{SiteConfigSchema, field_documentation, field_paths, field_values, section_help};
 pub use source::{ConfigSource, ParsedConfig};
@@ -372,9 +373,6 @@ path = "icons"
         let content = r#"[site]
 title = "Test"
 titel = "misspelled"
-
-[site.extra]
-theme = "night"
 "#;
         let error = SiteConfigSchema::parse(
             Path::new("tola.toml"),
@@ -383,17 +381,6 @@ theme = "night"
         )
         .unwrap_err();
         assert!(error.to_string().contains("site.titel"));
-        let schema = SiteConfigSchema::parse(
-            Path::new("tola.toml"),
-            &content.replace("titel = \"misspelled\"\n", ""),
-            crate::resources::InputScope::Online,
-        )
-        .unwrap();
-
-        assert_eq!(
-            schema.site.extra.get("theme"),
-            Some(&toml::Value::String("night".into()))
-        );
     }
 
     #[test]
@@ -453,7 +440,7 @@ content-dir = "content"
             ..Default::default()
         };
         let site_config = resolved_config(
-            "[site]\norigin = \"https://old.example\"\nbase-path = \"/old/\"",
+            "[site]\norigin = \"invalid\"\nbase-path = \"/unfinished\"",
             build,
         );
 
@@ -461,7 +448,10 @@ content-dir = "content"
             site_config.config.site.origin.as_deref(),
             Some("https://example.com")
         );
-        assert_eq!(site_config.config.site.base_path, "/%E9%A2%84%E8%A7%88/");
+        assert_eq!(
+            site_config.config.site.base_path.base_path(),
+            "/%E9%A2%84%E8%A7%88/"
+        );
         assert_eq!(
             site_config.config.site_url().as_deref(),
             Some("https://example.com/%E9%A2%84%E8%A7%88/")

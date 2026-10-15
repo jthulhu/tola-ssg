@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::section::SiteSectionConfig;
+use super::section::site::ResolvedSiteSection;
 use super::{BuildSectionConfig, ConfigDiagnostic};
 use crate::resources::BuildResources;
 use tola_address::{SiteOrigin, SiteUrlMount, UrlPath, browser_url};
@@ -29,7 +29,7 @@ pub struct ResolvedSiteConfig {
     /// Where the configuration source writes each key, so a warning can name its line.
     pub(super) positions: std::sync::Arc<crate::config::source::ConfigPositions>,
 
-    pub(crate) site: SiteSectionConfig,
+    pub(crate) site: ResolvedSiteSection,
 
     pub(crate) build: BuildSectionConfig,
 
@@ -39,7 +39,7 @@ pub struct ResolvedSiteConfig {
 
     pub(crate) icons: crate::config::section::IconsConfig,
 
-    pub vendor: crate::config::section::VendorConfig,
+    pub(crate) vendor: crate::config::section::VendorConfig,
 
     // Refresh and candidate configs retain the declared workspace, not a path derived from their selection.
     pub(crate) vendor_workspace: Option<PathBuf>,
@@ -67,33 +67,15 @@ impl ResolvedSiteConfig {
     /// Producers supply dynamic Bundle reads and external inputs that configuration alone cannot
     /// enumerate; those are added by the caller that knows them.
     pub(crate) fn protected_input_paths(&self) -> Vec<(&'static str, &std::path::Path)> {
-        let mut protected = vec![
-            ("content-dir", self.build.content_dir.as_path()),
-            ("build entry", self.build.entry.as_path()),
-        ];
-        if !self.config_path.as_os_str().is_empty() {
-            protected.push(("config", self.config_path.as_path()));
-        }
-        protected.extend(self.assets.tree_sources().map(|path| ("asset", path)));
-        protected.extend(self.assets.file_sources().map(|path| ("asset", path)));
-        protected.extend(
-            self.typst
-                .fonts
-                .paths
-                .iter()
-                .map(|path| ("font directory", path.as_path())),
-        );
-        protected.extend(self.icons.local_paths().map(|path| ("icon source", path)));
-        if let Some(path) = &self.vendor.path {
-            protected.push(("vendor", path.as_path()));
-        }
-        if let Some(location) = self.package_locations.data() {
-            protected.push(("Typst package", location.root()));
-        }
-        if let Some(location) = self.package_locations.cache() {
-            protected.push(("Typst package cache", location.root()));
-        }
-        protected
+        protected_input_paths(
+            &self.config_path,
+            &self.build,
+            &self.assets,
+            &self.typst.fonts,
+            &self.icons,
+            &self.vendor,
+            &self.package_locations,
+        )
     }
 
     /// Absolute logical path identifying the configuration source.
@@ -102,7 +84,7 @@ impl ResolvedSiteConfig {
     }
 
     /// Validated site identity and template values.
-    pub fn site(&self) -> &SiteSectionConfig {
+    pub fn site(&self) -> &ResolvedSiteSection {
         &self.site
     }
 
@@ -129,6 +111,11 @@ impl ResolvedSiteConfig {
 
     pub fn icons(&self) -> &crate::config::section::IconsConfig {
         &self.icons
+    }
+
+    /// Vendor settings whose directory has been resolved against the site root.
+    pub fn vendor(&self) -> &crate::config::section::VendorConfig {
+        &self.vendor
     }
 
     /// Site root directory.
@@ -191,31 +178,16 @@ impl ResolvedSiteConfig {
     /// source boundary grants it back so a read may reach a candidate being prepared, while a
     /// change filter excludes the whole directory either way.
     pub fn generated_exclusions(&self) -> Vec<GeneratedExclusion> {
-        let mut exclusions = vec![GeneratedExclusion {
-            directory: self.build.publish_dir.clone(),
-            candidate: None,
-        }];
-        if let Some(workspace) = crate::filesystem::publication_workspace(&self.build.publish_dir) {
-            exclusions.push(GeneratedExclusion {
-                directory: workspace,
-                candidate: None,
-            });
-        }
-        if let Some(workspace) = &self.vendor_workspace {
-            exclusions.push(GeneratedExclusion {
-                directory: workspace.clone(),
-                candidate: self.vendor_candidate.clone(),
-            });
-        }
-        exclusions
+        generated_exclusions(
+            &self.build.publish_dir,
+            self.vendor_workspace.as_deref(),
+            self.vendor_candidate.as_deref(),
+        )
     }
 
     /// Browser deployment mount for site-root URLs.
-    ///
-    /// Derived from the configured base path on every read, because a reuse decision compares
-    /// `site.base_path` while these URLs are rendered from the mount.
-    pub fn url_mount(&self) -> SiteUrlMount {
-        SiteUrlMount::from_base_path(&self.site.base_path).expect("site base path was validated")
+    pub fn url_mount(&self) -> &SiteUrlMount {
+        &self.site.base_path
     }
 
     /// Canonical site root URL when an origin is configured.
@@ -236,13 +208,74 @@ impl ResolvedSiteConfig {
 
     /// Build the browser URL of one site-root route, mounted and absolute when configured.
     pub fn canonical_url(&self, path: &UrlPath) -> String {
-        browser_url(path, &self.url_mount(), self.site_origin().as_ref())
+        browser_url(path, self.url_mount(), self.site_origin().as_ref())
     }
 
     /// Non-fatal diagnostics produced from this exact effective configuration.
     pub fn warnings(&self) -> &[ConfigDiagnostic] {
         &self.warnings
     }
+}
+
+pub(super) fn protected_input_paths<'a>(
+    config_path: &'a Path,
+    build: &'a BuildSectionConfig,
+    assets: &'a super::section::AssetsConfig,
+    fonts: &'a super::section::FontsConfig,
+    icons: &'a super::section::IconsConfig,
+    vendor: &'a super::section::VendorConfig,
+    packages: &'a tola_typst::PackageLocations,
+) -> Vec<(&'static str, &'a Path)> {
+    let mut protected = vec![
+        ("content-dir", build.content_dir.as_path()),
+        ("build entry", build.entry.as_path()),
+    ];
+    if !config_path.as_os_str().is_empty() {
+        protected.push(("config", config_path));
+    }
+    protected.extend(assets.tree_sources().map(|path| ("asset", path)));
+    protected.extend(assets.file_sources().map(|path| ("asset", path)));
+    protected.extend(
+        fonts
+            .paths
+            .iter()
+            .map(|path| ("font directory", path.as_path())),
+    );
+    protected.extend(icons.local_paths().map(|path| ("icon source", path)));
+    if let Some(path) = &vendor.path {
+        protected.push(("vendor", path.as_path()));
+    }
+    if let Some(location) = packages.data() {
+        protected.push(("Typst package", location.root()));
+    }
+    if let Some(location) = packages.cache() {
+        protected.push(("Typst package cache", location.root()));
+    }
+    protected
+}
+
+pub(super) fn generated_exclusions(
+    output: &Path,
+    vendor_workspace: Option<&Path>,
+    vendor_candidate: Option<&Path>,
+) -> Vec<GeneratedExclusion> {
+    let mut exclusions = vec![GeneratedExclusion {
+        directory: output.to_owned(),
+        candidate: None,
+    }];
+    if let Some(workspace) = crate::filesystem::publication_workspace(output) {
+        exclusions.push(GeneratedExclusion {
+            directory: workspace,
+            candidate: None,
+        });
+    }
+    if let Some(workspace) = vendor_workspace {
+        exclusions.push(GeneratedExclusion {
+            directory: workspace.to_owned(),
+            candidate: vendor_candidate.map(Path::to_owned),
+        });
+    }
+    exclusions
 }
 
 #[cfg(test)]

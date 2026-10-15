@@ -274,7 +274,7 @@ impl ConfigCandidate {
             && same_section(self.config.assets(), config.assets())?
             && same_section(self.config.fonts(), config.fonts())?
             && same_section(self.config.icons(), config.icons())?
-            && same_section(&self.config.vendor, &config.vendor)?
+            && same_section(self.config.vendor(), config.vendor())?
             && self.config.warnings().len() == config.warnings().len()
             && self
                 .config
@@ -624,6 +624,23 @@ mod tests {
                 .title,
             "Disk"
         );
+    }
+
+    #[test]
+    fn mount_identity_decides_build_reuse() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("tola.toml");
+        std::fs::write(&path, "[site]\nbase-path = \"/文档/\"\n").unwrap();
+        let (config, _, _, loader) = load_at(&path).into_parts();
+
+        for (base_path, unchanged) in [("/%e6%96%87%e6%a1%a3/", true), ("/notes/", false)] {
+            let source = format!("[site]\nbase-path = \"{base_path}\"\n");
+            let candidate = loader.load_text_candidate(&source).unwrap().unwrap();
+            assert_eq!(
+                candidate.has_same_build_settings(&config).unwrap(),
+                unchanged
+            );
+        }
     }
 
     #[test]

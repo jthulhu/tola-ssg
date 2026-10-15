@@ -75,7 +75,7 @@ fn site_values(config: &ResolvedSiteConfig) -> Dict {
     site.insert("origin".into(), site_config.origin.as_deref().into_value());
     site.insert(
         "base-path".into(),
-        site_config.base_path.as_str().into_value(),
+        site_config.base_path.base_path().into_value(),
     );
     site.insert("url".into(), config.site_url().into_value());
     site.insert("title".into(), site_config.title.as_str().into_value());
@@ -110,17 +110,6 @@ fn site_values(config: &ResolvedSiteConfig) -> Dict {
             .collect::<Array>()
             .into_value(),
     );
-    site.insert(
-        "copyright".into(),
-        site_config.copyright.as_str().into_value(),
-    );
-    let mut extra_fields = site_config.extra.iter().collect::<Vec<_>>();
-    extra_fields.sort_unstable_by_key(|(key, _)| *key);
-    let extra = extra_fields
-        .into_iter()
-        .map(|(key, value)| (key.as_str().into(), toml_to_value(value)))
-        .collect::<Dict>();
-    site.insert("extra".into(), extra.into_value());
     site
 }
 
@@ -138,26 +127,6 @@ fn language_fields(language: &SiteLanguage) -> Dict {
     );
     fields.insert("region".into(), language.region().into_value());
     fields
-}
-
-fn toml_to_value(toml_value: &toml::Value) -> typst::foundations::Value {
-    match toml_value {
-        toml::Value::String(string) => string.as_str().into_value(),
-        toml::Value::Integer(integer) => integer.into_value(),
-        toml::Value::Float(float) => float.into_value(),
-        toml::Value::Boolean(boolean) => boolean.into_value(),
-        toml::Value::Datetime(datetime) => datetime.to_string().into_value(),
-        toml::Value::Array(elements) => elements
-            .iter()
-            .map(toml_to_value)
-            .collect::<Array>()
-            .into_value(),
-        toml::Value::Table(fields) => fields
-            .iter()
-            .map(|(key, value)| (key.as_str().into(), toml_to_value(value)))
-            .collect::<Dict>()
-            .into_value(),
-    }
 }
 
 #[cfg(test)]
@@ -225,8 +194,6 @@ mod tests {
                 "description",
                 "language",
                 "languages",
-                "copyright",
-                "extra",
             ]
         );
     }

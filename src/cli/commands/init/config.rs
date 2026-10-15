@@ -7,8 +7,8 @@ use tola_build::config::section::build::hooks::{
     BeforeBuildHookConfig, CommandOutput, HooksConfig, OutputCommandConfig,
 };
 use tola_build::config::section::{
-    AssetFileDeclaration, AssetTreeDeclaration, AssetUrl, AssetUrlPrefix, AssetsConfig,
-    BuildSectionConfig, IconsConfig, SiteSectionConfig, TypstSectionConfig, VendorConfig,
+    AssetTreeDeclaration, AssetUrlPrefix, AssetsConfig, BuildSectionConfig, IconsConfig,
+    SiteSectionConfig, TypstSectionConfig, VendorConfig,
 };
 
 use crate::writes::FileWrites;
@@ -31,16 +31,7 @@ pub(super) fn schema(effects: &Effects) -> SiteConfigSchema {
             AssetUrlPrefix::parse("/assets").expect("the scaffold asset prefix is valid"),
         )],
         cache_busting: effects.cache_busting,
-        files: effects
-            .asset_files
-            .iter()
-            .map(|(source, url)| {
-                AssetFileDeclaration::new(
-                    *source,
-                    AssetUrl::parse(url).expect("the scaffold stylesheet URL is valid"),
-                )
-            })
-            .collect(),
+        ..AssetsConfig::default()
     };
     let build = BuildSectionConfig {
         hooks: HooksConfig {
@@ -133,7 +124,10 @@ pub(super) fn config_file(schema: &SiteConfigSchema) -> String {
     out.push_str("# https://github.com/tola-rs/tola-ssg\n\n");
 
     out.push_str(&help_line(SiteSectionConfig::TEMPLATE_SECTION));
-    out.push_str(&site_template(&schema.site));
+    out.push_str(
+        &SiteSectionConfig::try_template_with_header_from(&schema.site)
+            .expect("initial site configuration must be serializable"),
+    );
     out.push('\n');
 
     out.push_str(&help_line(BuildSectionConfig::TEMPLATE_SECTION));
@@ -183,22 +177,6 @@ fn build_section(build: &BuildSectionConfig) -> String {
     if !hooks.is_empty() {
         out.push('\n');
         out.push_str(hooks.trim_start_matches('\n'));
-    }
-    out
-}
-
-fn site_template(site: &SiteSectionConfig) -> String {
-    let mut out = SiteSectionConfig::try_template_with_header_from(site)
-        .expect("initial site configuration must be serializable");
-    if !site.extra.is_empty() {
-        let extra = toml::Value::try_from(&site.extra)
-            .expect("initial site extensions must be serializable");
-        let site = toml::Value::Table(toml::map::Map::from_iter([("extra".into(), extra)]));
-        let extensions = toml::map::Map::from_iter([("site".into(), site)]);
-        out.push('\n');
-        out.push_str(
-            &toml::to_string(&extensions).expect("initial site extensions must be serializable"),
-        );
     }
     out
 }
@@ -268,15 +246,7 @@ mod tests {
             [PathBuf::from("static/web-assets/tailwind-output/site.css")]
         );
         assert!(schema.assets.cache_busting);
-        assert_eq!(schema.assets.files.len(), 1);
-        assert_eq!(
-            schema.assets.files[0].source(),
-            Path::new("static/web-assets/tailwind-output/site.css")
-        );
-        assert_eq!(
-            schema.assets.files[0].url().as_str(),
-            "/assets/css/site.css"
-        );
+        assert!(schema.assets.files.is_empty());
     }
 
     #[test]

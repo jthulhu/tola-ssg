@@ -93,7 +93,7 @@ impl AssetUrls {
             let url = declaration.url().url_path();
             published.push((
                 declaration.url().as_str().to_owned(),
-                browser_url(&mount, url, None),
+                browser_url(mount, url, None),
                 AssetOrigin::File {
                     source: declaration.source().to_path_buf(),
                 },
@@ -111,7 +111,7 @@ impl AssetUrls {
                     config.get_root(),
                 )?;
                 let url = tola_address::asset_url_from_output(&output.output);
-                let browser = browser_url(&mount, &url, None);
+                let browser = browser_url(mount, &url, None);
                 published.push((
                     url.as_str().to_owned(),
                     browser,

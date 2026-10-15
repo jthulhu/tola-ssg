@@ -247,15 +247,49 @@ pub fn resolve_parsed_site_config(
 }
 
 fn resolve_schema(
-    schema: SiteConfigSchema,
-    config_path: PathBuf,
+    mut schema: SiteConfigSchema,
+    mut config_path: PathBuf,
     root: PathBuf,
     presence: &ConfigPresence,
     positions: std::sync::Arc<crate::config::source::ConfigPositions>,
-    package_locations: tola_typst::PackageLocations,
+    mut package_locations: tola_typst::PackageLocations,
     build: &BuildOverrides,
 ) -> Result<ResolvedSiteConfig> {
     schema.validate_source_paths(presence)?;
+    normalize_site_paths(
+        &mut schema,
+        &mut config_path,
+        &root,
+        build.publish_dir.as_ref(),
+    )?;
+    // Vendored package bytes precede host roots before configuration semantics are checked.
+    if let Some(path) = schema.vendor.typst_packages() {
+        package_locations = package_locations.with_declared_root(path)?;
+    }
+    apply_build_overrides(&mut schema, build);
+    // Output ownership is checked before semantic diagnostics, as it is a layout failure.
+    let boundary = crate::filesystem::OutputBoundary::resolve(
+        &root,
+        &schema.build.publish_dir,
+        super::resolved::protected_input_paths(
+            &config_path,
+            &schema.build,
+            &schema.assets,
+            &schema.typst.fonts,
+            &schema.icons,
+            &schema.vendor,
+            &package_locations,
+        ),
+    )?;
+    schema.build.publish_dir = boundary.output;
+    let vendor_workspace = schema.vendor.workspace_path();
+    let warnings = validate_effective_config(
+        &schema,
+        &root,
+        &config_path,
+        vendor_workspace.as_deref(),
+        presence,
+    )?;
     let SiteConfigSchema {
         site,
         build: build_config,
@@ -265,67 +299,49 @@ fn resolve_schema(
         vendor,
         ..
     } = schema;
-    let mut config = ResolvedSiteConfig {
+    Ok(ResolvedSiteConfig {
         package_locations,
         config_path,
         root,
-        warnings: Vec::new(),
+        warnings,
         positions,
-        site,
+        site: site.into_resolved(),
         build: build_config,
         assets,
         typst,
         icons,
         vendor,
-        vendor_workspace: None,
+        vendor_workspace,
         vendor_candidate: None,
-    };
-    normalize_site_paths(&mut config, build.publish_dir.as_ref())?;
-    // The bytes the site vendors are searched ahead of every host root.
-    if let Some(path) = config.vendor.typst_packages() {
-        config.package_locations = config.package_locations.clone().with_declared_root(path)?;
-    }
-    apply_build_overrides(&mut config, build);
-    // Resolve the declared output path and reject one that overlaps an input before any semantic
-    // validation runs: an unusable output root is a layout failure, not a value to interpret.
-    let boundary = crate::filesystem::OutputBoundary::resolve(
-        config.get_root(),
-        &config.build.publish_dir,
-        config.protected_input_paths(),
-    )?;
-    config.build.publish_dir = boundary.output.clone();
-    validate_resolved_config(&mut config, presence)?;
-    // Canonicalize the configured address in place — the origin's spelling and the base path's
-    // percent-encoding — which `site.url()` and the derived mount both read. The mount this
-    // returns is deliberately discarded: `ResolvedSiteConfig::url_mount()` derives it from
-    // `site.base_path`, and this must run after validation, whose result its `expect` relies on.
-    config.site.normalize_address();
-    Ok(config)
+    })
 }
 
-fn normalize_site_paths(config: &mut ResolvedSiteConfig, output: Option<&PathBuf>) -> Result<()> {
+fn normalize_site_paths(
+    config: &mut SiteConfigSchema,
+    config_path: &mut PathBuf,
+    root: &Path,
+    output: Option<&PathBuf>,
+) -> Result<()> {
     replace_when_some(&mut config.build.publish_dir, output);
-    let root = config.get_root().to_path_buf();
 
     // Preserve logical input paths to detect symlink retargets.
     // Safety and overlap checks resolve physical paths separately.
-    let declared = std::mem::take(&mut config.config_path);
-    config.config_path =
+    let declared = std::mem::take(config_path);
+    *config_path =
         std::path::absolute(&declared).map_err(|error| unresolved_config_path(&declared, error))?;
     config.build.entry = root.join(&config.build.entry);
     config.build.content_dir = root.join(&config.build.content_dir);
-    config.assets.normalize(&root);
-    config.typst.fonts.normalize(&root);
+    config.assets.normalize(root);
+    config.typst.fonts.normalize(root);
     // Do not follow output symlinks: safety validation must see them.
     config.build.publish_dir =
         crate::filesystem::lexical_path_identity(&root.join(&config.build.publish_dir));
-    config.icons.normalize(&root);
-    config.vendor.normalize(&root);
-    config.vendor_workspace = config.vendor.workspace_path();
+    config.icons.normalize(root);
+    config.vendor.normalize(root);
     Ok(())
 }
 
-fn apply_build_overrides(config: &mut ResolvedSiteConfig, overrides: &BuildOverrides) {
+fn apply_build_overrides(config: &mut SiteConfigSchema, overrides: &BuildOverrides) {
     if let Some(enabled) = overrides.minify {
         config.build.minify = MinifyConfig {
             html: enabled,
@@ -345,10 +361,13 @@ fn replace_when_some<T: Clone>(target: &mut T, replacement: Option<&T>) {
     }
 }
 
-fn validate_resolved_config(
-    config: &mut ResolvedSiteConfig,
+fn validate_effective_config(
+    config: &SiteConfigSchema,
+    root: &Path,
+    config_path: &Path,
+    vendor_workspace: Option<&Path>,
     presence: &ConfigPresence,
-) -> Result<()> {
+) -> Result<Vec<ConfigDiagnostic>> {
     let mut diagnostics = super::schema::settings_diagnostics(
         &config.site,
         &config.build,
@@ -360,11 +379,15 @@ fn validate_resolved_config(
     );
     config
         .vendor
-        .validate_internal_boundaries(config.get_root(), &mut diagnostics);
+        .validate_internal_boundaries(root, &mut diagnostics);
     config
         .icons
-        .validate_internal_boundaries(config.get_root(), &mut diagnostics);
-    let boundary = crate::resources::source_boundary(config, crate::InputScope::Online);
+        .validate_internal_boundaries(root, &mut diagnostics);
+    let boundary = crate::resources::source_boundary_with_exclusions(
+        root,
+        crate::InputScope::Online,
+        super::resolved::generated_exclusions(&config.build.publish_dir, vendor_workspace, None),
+    );
     for (field, path) in [
         (FieldPath::new("build.entry"), &config.build.entry),
         (
@@ -383,7 +406,7 @@ fn validate_resolved_config(
             }
         });
     }
-    if let Some(workspace) = &config.vendor_workspace {
+    if let Some(workspace) = vendor_workspace {
         let workspace_identity = crate::filesystem::FilesystemSourceIdentity::from_path(workspace);
         let output_identity =
             crate::filesystem::FilesystemSourceIdentity::from_path(&config.build.publish_dir);
@@ -392,38 +415,38 @@ fn validate_resolved_config(
                 FieldPath::new("build.publish-dir"),
                 format!(
                     "`build.publish-dir` `{}` overlaps the vendor working directory `{}`",
-                    crate::filesystem::display_path(&config.build.publish_dir, config.get_root()),
-                    crate::filesystem::display_path(workspace, config.get_root()),
+                    crate::filesystem::display_path(&config.build.publish_dir, root),
+                    crate::filesystem::display_path(workspace, root),
                 ),
             );
         }
     }
     validate_hook_output_boundaries(
         &config.build.hooks,
-        config.get_root(),
-        &config.config_path,
+        root,
+        config_path,
         &config.build.publish_dir,
-        config.vendor_workspace.as_deref(),
+        vendor_workspace,
         &mut diagnostics,
     );
     validate_asset_source_boundaries(
         &config.assets,
-        config.get_root(),
+        root,
         &config.build.content_dir,
         &config.build.publish_dir,
         &mut diagnostics,
     );
 
-    config.warnings.extend(
-        diagnostics
-            .experimental_fields()
-            .iter()
-            .map(|field| ConfigDiagnostic::experimental(*field))
-            .chain(diagnostics.warnings().iter().cloned()),
-    );
+    let warnings = diagnostics
+        .experimental_fields()
+        .iter()
+        .map(|field| ConfigDiagnostic::experimental(*field))
+        .chain(diagnostics.warnings().iter().cloned())
+        .collect();
 
     diagnostics
         .into_result()
+        .map(|()| warnings)
         .map_err(|diagnostics| ConfigError::Diagnostics(diagnostics).into())
 }
 
@@ -937,6 +960,24 @@ publish-dir = "."
             message.contains("points outside the site directory"),
             "{message}"
         );
+    }
+
+    #[test]
+    fn address_failures_keep_language_errors() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let error = resolve_site_config(
+            &directory.path().join("tola.toml"),
+            "[site]\norigin = \"invalid\"\nbase-path = \"/unfinished\"\nlanguage = \"bad-tag-!\"\n",
+            tola_typst::PackageLocations::default(),
+            &BuildOverrides::default(),
+        )
+        .unwrap_err();
+        let diagnostics = attached_diagnostics(&error);
+        let fields = diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.notes.first().unwrap().as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(fields, ["site.origin", "site.base-path", "site.language"]);
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Feed and sitemap outputs declared by the final Typst Bundle.
 
 use std::sync::Arc;
+use tola_address::SiteUrlMount;
 
 use crate::cancellation::BuildCancellation;
 use crate::config::{ReferenceLevel, ResolvedSiteConfig};
@@ -96,7 +97,7 @@ impl SeoCompilation {
 #[derive(Debug, PartialEq, Eq)]
 struct SeoConfiguration {
     origin: Option<String>,
-    base_path: String,
+    base_path: SiteUrlMount,
     navigation: ReferenceLevel,
     resources: ReferenceLevel,
 }
@@ -503,7 +504,6 @@ authors = [{ name = "Alice", email = "alice@example.com", url = "https://example
         assert_seo_matches_fresh(&reused, &config, &compilation);
 
         let mut unrelated = config.clone();
-        unrelated.site.copyright = "Different template metadata".into();
         unrelated.site.title = "Revised feed".into();
         unrelated.site.description = "Revised description".into();
         unrelated.site.language = LanguageDeclaration::Tag("fr".into());
@@ -520,7 +520,7 @@ authors = [{ name = "Alice", email = "alice@example.com", url = "https://example
                 config.site.origin = Some("https://elsewhere.test".into())
             }),
             ("base-path", |config| {
-                config.site.base_path = "/notes/".into()
+                config.site.base_path = SiteUrlMount::from_base_path("/notes/").unwrap()
             }),
         ];
         for (field, change) in changes {

@@ -12,18 +12,15 @@
 //! description = "A personal blog"
 //! authors = [{ name = "Alice" }]
 //! language = "zh-Hans-CN"
-//!
-//! [site.extra]
-//! github = "https://github.com/alice"
-//!
 //! ```
 
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tola_config::Config;
 
 mod language;
+mod resolved;
 pub use language::{LanguageDeclaration, LanguageSubtag, SiteLanguage, UnusableLanguage};
+pub use resolved::ResolvedSiteSection;
 
 /// A configured site author exposed to Typst templates.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -36,7 +33,8 @@ pub struct SiteAuthor {
     pub url: Option<String>,
 }
 
-/// Site identity and values available to templates.
+/// One site's values: Tola parses and validates their formats — `language` must be a BCP 47
+/// language tag, for example; templates read them through `@tola/site`.
 #[derive(Debug, Clone, Serialize, Deserialize, Config)]
 #[serde(default)]
 #[config(section = "site")]
@@ -63,8 +61,8 @@ pub struct SiteSectionConfig {
 
     /// The languages a multilingual site publishes, written as `["en", "zh-Hans"]` or with the
     /// parts of a tag: `[{ lang = "en" }, { lang = "zh", script = "Hans" }]`. Each entry takes
-    /// the shape `language` takes, and is validated the same way. Declaring it makes `language`
-    /// the default: `language` must then be written, and must name one of the entries.
+    /// the shape `language` takes, and is validated the same way. `language` names the site's
+    /// default language (`"en"` when omitted); a nonempty list must include it.
     ///
     /// Tola reads this as data and does not act on it. How a site routes, pairs, and switches
     /// between its languages is the site's own to decide.
@@ -77,13 +75,6 @@ pub struct SiteSectionConfig {
     /// Pass `.lang` to `slugify` for Han pronunciation in ASCII mode: `ja` selects Japanese,
     /// other languages select Chinese. Script and region do not change slugification.
     pub language: LanguageDeclaration,
-
-    /// The rights notice templates can print, such as `© 2026 Alice`.
-    pub copyright: String,
-
-    /// Your own values, available to templates as `site.extra`.
-    #[config(hidden)]
-    pub extra: FxHashMap<String, toml::Value>,
 }
 
 impl Default for SiteSectionConfig {
@@ -96,8 +87,6 @@ impl Default for SiteSectionConfig {
             description: String::new(),
             languages: Vec::new(),
             language: LanguageDeclaration::default(),
-            copyright: String::new(),
-            extra: FxHashMap::default(),
         }
     }
 }
@@ -114,7 +103,6 @@ base-path = \"/docs/\"              # The path the site is served below
 title = \"Example\"
 description = \"Notes on Typst, published with Tola\"
 language = \"zh-Hant-TW\"           # Or { lang = \"zh\", script = \"Hant\", region = \"TW\" }
-copyright = \"© 2026 Alice\"
 authors = [{ name = \"Alice\", email = \"alice@example.com\" }]
 ```
 
@@ -177,20 +165,6 @@ no `origin` is set. `site.language` carries the whole tag as `tag` and its parts
         }
     }
 
-    /// The validated site language.
-    ///
-    /// Configuration validation rejects an unusable language before any build reads it.
-    pub(crate) fn language(&self) -> SiteLanguage {
-        SiteLanguage::parse(&self.language).expect("the site language was validated")
-    }
-
-    /// The validated languages a multilingual site publishes.
-    pub(crate) fn languages(&self) -> impl Iterator<Item = SiteLanguage> + '_ {
-        self.languages
-            .iter()
-            .map(|language| SiteLanguage::parse(language).expect("languages were validated"))
-    }
-
     pub(crate) fn validate_address(&self, diagnostics: &mut crate::config::ConfigDiagnostics) {
         if let Some(origin) = self.origin.as_deref() {
             match tola_address::SiteOrigin::parse(origin) {
@@ -216,27 +190,6 @@ no `origin` is set. `site.language` carries the whole tag as `tag` and its parts
                 base_path_help(&error),
             );
         }
-    }
-
-    pub(crate) fn normalize_address(&mut self) -> tola_address::SiteUrlMount {
-        if let Some(origin) = self.origin.as_deref() {
-            self.origin = Some(
-                tola_address::SiteOrigin::parse(origin)
-                    .expect("site origin was validated")
-                    .origin()
-                    .to_owned(),
-            );
-        }
-        let mount = tola_address::SiteUrlMount::from_base_path(&self.base_path)
-            .expect("site base path was validated");
-        self.base_path = mount.base_path();
-        mount
-    }
-
-    pub(crate) fn url(&self) -> Option<String> {
-        self.origin
-            .as_ref()
-            .map(|origin| format!("{origin}{}", self.base_path))
     }
 }
 
@@ -304,22 +257,22 @@ mod tests {
 
     #[test]
     fn site_address_normalizes_from_toml() {
-        let mut site: SiteSectionConfig =
+        let site: SiteSectionConfig =
             toml::from_str("origin = \"https://EXAMPLE.com:443/\"\nbase-path = \"/文档/\"")
                 .unwrap();
         let mut diagnostics = crate::config::ConfigDiagnostics::new();
         site.validate_address(&mut diagnostics);
         diagnostics.into_result().unwrap();
 
-        let mount = site.normalize_address();
+        let site = site.into_resolved();
 
         assert_eq!(site.origin.as_deref(), Some("https://example.com"));
-        assert_eq!(site.base_path, "/%E6%96%87%E6%A1%A3/");
+        assert_eq!(site.base_path.base_path(), "/%E6%96%87%E6%A1%A3/");
         assert_eq!(
             site.url().as_deref(),
             Some("https://example.com/%E6%96%87%E6%A1%A3/")
         );
-        assert_eq!(mount.as_str(), "%E6%96%87%E6%A1%A3");
+        assert_eq!(site.base_path.as_str(), "%E6%96%87%E6%A1%A3");
     }
 
     #[test]
@@ -382,7 +335,11 @@ mod tests {
             let mut diagnostics = crate::config::ConfigDiagnostics::new();
             site.validate_language(&mut diagnostics);
             diagnostics.into_result().unwrap();
-            assert_eq!(site.language().tag(), tag, "{source}");
+            assert_eq!(
+                super::SiteLanguage::parse(&site.language).unwrap().tag(),
+                tag,
+                "{source}"
+            );
         }
     }
 
