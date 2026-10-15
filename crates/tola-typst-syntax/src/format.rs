@@ -1,7 +1,8 @@
 //! Formatting one Typst source.
 
 use crate::edit::Edit;
-use typst_syntax::Source;
+use crate::style::ProseWrap;
+use typst_syntax::{LinkedNode, Source, SyntaxKind};
 use typstyle_core::{Config, Typstyle, WrapMode};
 
 /// The narrowest width a source may be wrapped to.
@@ -14,8 +15,8 @@ pub struct Options {
     pub tab_spaces: usize,
     /// The column the formatter wraps at.
     pub max_width: usize,
-    /// Whether prose is wrapped to fill each line.
-    pub prose_wrap: bool,
+    /// How markup prose is wrapped.
+    pub prose_wrap: ProseWrap,
 }
 
 impl Default for Options {
@@ -23,27 +24,60 @@ impl Default for Options {
         Self {
             tab_spaces: 2,
             max_width: 120,
-            prose_wrap: false,
+            prose_wrap: ProseWrap::None,
         }
     }
 }
 
-/// The edit that formats `source`, or `None` when the source already stands as it should.
+/// What formatting one source produced.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Formatting {
+    /// The source already stands as it should.
+    Stands,
+    /// The edit that reformats the source.
+    Reformatted(Edit),
+    /// The source has syntax errors; the offset is where the tree marks the first one, when it
+    /// marks a place.
+    Unparsable { offset: Option<usize> },
+    /// The printer could not render the parsed source.
+    Unrenderable,
+}
+
+/// What formatting `source` produced.
 ///
-/// A source that does not parse and one the printer cannot render answer the same way: the caller
-/// keeps the text the author already has.
-pub fn format(source: &str, options: &Options) -> Option<Edit> {
-    let formatted = Typstyle::new(config(options))
-        .format_text(source)
-        .render()
-        .ok()?;
-    unchanged(0..source.len(), formatted, source)
+/// A source that does not parse and one the printer cannot render answer
+/// [`Formatting::Unparsable`] and [`Formatting::Unrenderable`], and the author's text stands; only
+/// the first is the author's to fix.
+pub fn format(source: &str, options: &Options) -> Formatting {
+    match Typstyle::new(config(options)).format_text(source).render() {
+        Ok(formatted) => match unchanged(0..source.len(), formatted, source) {
+            Some(edit) => Formatting::Reformatted(edit),
+            None => Formatting::Stands,
+        },
+        Err(typstyle_core::Error::SyntaxError) => Formatting::Unparsable {
+            offset: unparsable_at(source),
+        },
+        Err(typstyle_core::Error::RenderError) => Formatting::Unrenderable,
+    }
+}
+
+/// Where the source first fails to parse, when the tree marks a place.
+fn unparsable_at(source: &str) -> Option<usize> {
+    let parsed = Source::detached(source);
+    let mut pending = vec![LinkedNode::new(parsed.root())];
+    while let Some(node) = pending.pop() {
+        if node.kind() == SyntaxKind::Error {
+            return Some(node.range().start);
+        }
+        pending.extend(node.children().rev());
+    }
+    None
 }
 
 /// The edit that formats the part of `source` the byte `range` covers.
 ///
 /// The formatter widens the range to the constructs it covers, so the edit replaces what it
-/// actually reprinted. A source that does not parse answers `None`, as formatting one does.
+/// actually reprinted. A source that does not parse answers `None`, like [`format()`].
 pub fn format_range(
     source: &str,
     range: std::ops::Range<usize>,
@@ -69,10 +103,10 @@ fn config(options: &Options) -> Config {
     Config {
         tab_spaces: options.tab_spaces,
         max_width: options.max_width.max(MINIMUM_PRINT_WIDTH),
-        wrap_mode: if options.prose_wrap {
-            WrapMode::Fill
-        } else {
-            WrapMode::None
+        wrap_mode: match options.prose_wrap {
+            ProseWrap::None => WrapMode::None,
+            ProseWrap::Fill => WrapMode::Fill,
+            ProseWrap::Sentence => WrapMode::Sentence,
         },
         ..Config::default()
     }
@@ -97,15 +131,35 @@ mod tests {
 
     #[test]
     fn changed_source_answers_its_edit() {
-        let edit = format("#let  x =  1\n", &Options::default()).expect("an edit");
+        let edit = match format("#let  x =  1\n", &Options::default()) {
+            Formatting::Reformatted(edit) => edit,
+            other => panic!("expected a reformatted source, got {other:?}"),
+        };
         assert_eq!(edit.text, "#let x = 1\n");
         assert_eq!(edit.range, 0.."#let  x =  1\n".len());
         assert_eq!(edit.insertion, None);
     }
 
     #[test]
-    fn already_formatted_source_answers_none() {
-        assert!(format("#let x = 1\n", &Options::default()).is_none());
+    fn already_formatted_source_answers_stands() {
+        assert_eq!(
+            format("#let x = 1\n", &Options::default()),
+            Formatting::Stands
+        );
+    }
+
+    #[test]
+    fn unparsable_source_names_where_it_fails() {
+        let source = "= Title\n#let = \n";
+        let broken = source.find("#let").expect("the broken line");
+        let line_end = source[broken..]
+            .find('\n')
+            .map_or(source.len(), |at| broken + at);
+        let offset = match format(source, &Options::default()) {
+            Formatting::Unparsable { offset } => offset.expect("the tree marks a place"),
+            other => panic!("expected an unparsable source, got {other:?}"),
+        };
+        assert!((broken..=line_end).contains(&offset), "offset {offset}");
     }
 
     #[test]
@@ -114,7 +168,10 @@ mod tests {
             max_width: 1,
             ..Options::default()
         };
-        assert!(format("#let x = 1\n", &narrow).is_none());
-        assert!(format("#let  x =  1\n", &narrow).is_some());
+        assert_eq!(format("#let x = 1\n", &narrow), Formatting::Stands);
+        assert!(matches!(
+            format("#let  x =  1\n", &narrow),
+            Formatting::Reformatted(_)
+        ));
     }
 }

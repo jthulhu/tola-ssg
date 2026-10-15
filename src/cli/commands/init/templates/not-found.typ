@@ -9,7 +9,7 @@
     #html.html(lang: site.language.tag)[
       #html.head[
         #for entry in head-entries("Page not found") { entry }
-{{head}}
+        {{head}}
       ]
       #html.body[
         #html.elem("main")[

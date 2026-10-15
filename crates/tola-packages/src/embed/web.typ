@@ -76,10 +76,13 @@
   ) => {
     let head-text = union(content, optional-text)
     let text-or-auto = union(literal(auto), head-text)
-    let site-texts = schema((
-      title: optional(head-text, default: none),
-      description: optional(head-text, default: none),
-    ), unknown: "keep")
+    let site-texts = schema(
+      (
+        title: optional(head-text, default: none),
+        description: optional(head-text, default: none),
+      ),
+      unknown: "keep",
+    )
     let options = parse(
       (
         site: site,
@@ -135,7 +138,7 @@
 #let canonical = {
   import "@tola/schema:0.0.0": http-url, parse, schema
 
-  (href) => {
+  href => {
     let href = parse((href: href), schema((href: http-url))).href
     (html.link(rel: "canonical", href: href),)
   }
@@ -174,7 +177,9 @@
 /// - locale (none | string): the page's locale; written only when set.
 /// -> array
 #let open-graph = {
-  import "@tola/schema:0.0.0": array-of, http-url, https-url, map, non-empty, nullable, optional, parse, refine, schema, trim
+  import "@tola/schema:0.0.0": (
+    array-of, http-url, https-url, map, non-empty, nullable, optional, parse, refine, schema, trim,
+  )
   import "web-fields.typ": empty-to-none, optional-text
 
   (

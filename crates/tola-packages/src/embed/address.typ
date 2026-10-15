@@ -281,7 +281,9 @@
 /// - origin (none | string): the absolute origin the result is written under.
 /// -> string
 #let route-url(route, base-path: auto, origin: none) = output-url(
-  output-of(route), base-path: base-path, origin: origin,
+  output-of(route),
+  base-path: base-path,
+  origin: origin,
 )
 
 /// Reads site configuration (`[assets]`, `[site]` `base-path`): the browser URL a declared asset URL serves at.

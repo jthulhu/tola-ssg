@@ -28,7 +28,10 @@
     let attribute-name = lower(name)
     assert(
       attribute-name not in ("role", "aria-label"),
-      message: operation + " `" + name + "` belongs to the math wrapper"
+      message: operation
+        + " `"
+        + name
+        + "` belongs to the math wrapper"
         + if attribute-name == "aria-label" { "; set the alternative with `alt`" } else { " and cannot be overridden" },
     )
     assert(type(value) == str, message: operation + " `attrs` values must be strings")

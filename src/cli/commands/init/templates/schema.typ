@@ -1,17 +1,22 @@
 // Add custom page fields here; unknown fields are errors.
 
-#import "@tola/schema:0.0.0": describe, literal, nullable, optional, schema, union, one-or-many, trim, url-path, date, timestamp
+#import "@tola/schema:0.0.0": (
+  date, describe, literal, nullable, one-or-many, optional, schema, timestamp, trim, union, url-path,
+)
 #import "@tola/site:0.0.0": site
 
 /// One page author: a `name`, with an optional `email` and `url`.
 ///
 /// Unknown author fields stay available to templates; the feed recipe reads `name`, `email`, and
 /// `url`.
-#let author = schema((
-  name: str,
-  email: optional(nullable(str)),
-  url: optional(nullable(str)),
-), unknown: "keep")
+#let author = schema(
+  (
+    name: str,
+    email: optional(nullable(str)),
+    url: optional(nullable(str)),
+  ),
+  unknown: "keep",
+)
 
 /// The page metadata declaration: the fields a source may set, each defaulting to the site's
 /// value where one applies.

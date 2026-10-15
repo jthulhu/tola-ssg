@@ -94,8 +94,8 @@
     let (local-part, domain) = mailbox
     if local-part.len() > 64 { return false }
     (
-      local-part.split(".").all(atom => atom.contains(email-atom)) and
-      domain.split(".").all(domain-label => domain-label.contains(domain-label-pattern))
+      local-part.split(".").all(atom => atom.contains(email-atom))
+        and domain.split(".").all(domain-label => domain-label.contains(domain-label-pattern))
     )
   }
 
@@ -134,12 +134,12 @@
   // RFC 3987 ucschar excludes private-use and noncharacter ranges; only queries add iprivate.
   let iri-unreserved = (
     "A-Za-z0-9._~\\-"
-    + "\\x{A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}"
-    + "\\x{10000}-\\x{1FFFD}\\x{20000}-\\x{2FFFD}\\x{30000}-\\x{3FFFD}"
-    + "\\x{40000}-\\x{4FFFD}\\x{50000}-\\x{5FFFD}\\x{60000}-\\x{6FFFD}"
-    + "\\x{70000}-\\x{7FFFD}\\x{80000}-\\x{8FFFD}\\x{90000}-\\x{9FFFD}"
-    + "\\x{A0000}-\\x{AFFFD}\\x{B0000}-\\x{BFFFD}\\x{C0000}-\\x{CFFFD}"
-    + "\\x{D0000}-\\x{DFFFD}\\x{E1000}-\\x{EFFFD}"
+      + "\\x{A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}"
+      + "\\x{10000}-\\x{1FFFD}\\x{20000}-\\x{2FFFD}\\x{30000}-\\x{3FFFD}"
+      + "\\x{40000}-\\x{4FFFD}\\x{50000}-\\x{5FFFD}\\x{60000}-\\x{6FFFD}"
+      + "\\x{70000}-\\x{7FFFD}\\x{80000}-\\x{8FFFD}\\x{90000}-\\x{9FFFD}"
+      + "\\x{A0000}-\\x{AFFFD}\\x{B0000}-\\x{BFFFD}\\x{C0000}-\\x{CFFFD}"
+      + "\\x{D0000}-\\x{DFFFD}\\x{E1000}-\\x{EFFFD}"
   )
   let iri-private = "\\x{E000}-\\x{F8FF}\\x{F0000}-\\x{FFFFD}\\x{100000}-\\x{10FFFD}"
   let iri-component-pattern(extra-characters) = regex(

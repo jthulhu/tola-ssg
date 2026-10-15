@@ -9,7 +9,10 @@
 
 #let memberships-of(member, keys, operation) = {
   let memberships = keys(member)
-  require(type(memberships) == array, message: operation + " `keys` must return an array; found `" + repr(type(memberships)) + "`")
+  require(
+    type(memberships) == array,
+    message: operation + " `keys` must return an array; found `" + repr(type(memberships)) + "`",
+  )
   memberships
 }
 
@@ -18,7 +21,10 @@
 }
 
 #let unique-keys(members, key, operation) = {
-  require(type(members) == array, message: operation + " `members` must be an array; found `" + repr(type(members)) + "`")
+  require(
+    type(members) == array,
+    message: operation + " `members` must be an array; found `" + repr(type(members)) + "`",
+  )
   let member-keys = members.map(key)
   let seen = ()
   for member-key in member-keys {

@@ -41,7 +41,10 @@
   require(type(keys) == array, message: "pick `keys` must be an array of strings; found `" + repr(type(keys)) + "`")
   let selected = (:)
   for (index, field) in keys.enumerate() {
-    require(type(field) == str, message: "pick `keys` must contain strings; found `" + repr(type(field)) + "` at index " + str(index))
+    require(
+      type(field) == str,
+      message: "pick `keys` must contain strings; found `" + repr(type(field)) + "` at index " + str(index),
+    )
     if field in fields and field not in selected {
       selected.insert(field, fields.at(field))
     }
@@ -72,13 +75,19 @@
 /// - key (function): receives one member; returns its string key.
 /// -> dictionary
 #let index-by(members, key: value => value) = {
-  import "keys.typ": require, duplicate-key-message
+  import "keys.typ": duplicate-key-message, require
 
   require(type(members) == array, message: "index-by `members` must be an array; found `" + repr(type(members)) + "`")
   let by-key = (:)
   for (index, member) in members.enumerate() {
     let member-key = key(member)
-    require(type(member-key) == str, message: "index-by `key` must return a string; found `" + repr(type(member-key)) + "` for member at index " + str(index))
+    require(
+      type(member-key) == str,
+      message: "index-by `key` must return a string; found `"
+        + repr(type(member-key))
+        + "` for member at index "
+        + str(index),
+    )
     if member-key in by-key {
       require(false, message: duplicate-key-message("index-by", member-key))
     }
@@ -114,7 +123,13 @@
   let groups = (:)
   for (index, member) in members.enumerate() {
     let group-key = key(member)
-    require(type(group-key) == str, message: "group-by `key` must return a string; found `" + repr(type(group-key)) + "` for member at index " + str(index))
+    require(
+      type(group-key) == str,
+      message: "group-by `key` must return a string; found `"
+        + repr(type(group-key))
+        + "` for member at index "
+        + str(index),
+    )
     if group-key not in groups { groups.insert(group-key, ()) }
     groups.at(group-key).push(member)
   }
@@ -150,13 +165,19 @@
 /// - keys (function): receives one member; returns its membership keys.
 /// -> dictionary
 #let group-by-keys(members, keys: value => value) = {
-  import "keys.typ": require, memberships-of
+  import "keys.typ": memberships-of, require
 
-  require(type(members) == array, message: "group-by-keys `members` must be an array; found `" + repr(type(members)) + "`")
+  require(
+    type(members) == array,
+    message: "group-by-keys `members` must be an array; found `" + repr(type(members)) + "`",
+  )
   let groups = (:)
   for member in members {
     for group-key in memberships-of(member, keys, "group-by-keys").dedup() {
-      require(type(group-key) == str, message: "group-by-keys `keys` must return string keys; found `" + repr(type(group-key)) + "`")
+      require(
+        type(group-key) == str,
+        message: "group-by-keys `keys` must return string keys; found `" + repr(type(group-key)) + "`",
+      )
       if group-key not in groups { groups.insert(group-key, ()) }
       groups.at(group-key).push(member)
     }
@@ -202,11 +223,20 @@
 /// - match ("any" | "all"): whether one wanted membership is enough, or all of them are required.
 /// -> array
 #let select-members(members, wanted, keys: value => value, match: "any") = {
-  import "keys.typ": require, memberships-of
+  import "keys.typ": memberships-of, require
 
-  require(type(members) == array, message: "select-members `members` must be an array; found `" + repr(type(members)) + "`")
-  require(type(wanted) == array, message: "select-members `wanted` must be an array; found `" + repr(type(wanted)) + "`")
-  require(match in ("any", "all"), message: "select-members `match` must be `\"any\"` or `\"all\"`; found `" + repr(match) + "`")
+  require(
+    type(members) == array,
+    message: "select-members `members` must be an array; found `" + repr(type(members)) + "`",
+  )
+  require(
+    type(wanted) == array,
+    message: "select-members `wanted` must be an array; found `" + repr(type(wanted)) + "`",
+  )
+  require(
+    match in ("any", "all"),
+    message: "select-members `match` must be `\"any\"` or `\"all\"`; found `" + repr(match) + "`",
+  )
   members.filter(member => {
     let available = memberships-of(member, keys, "select-members")
     if match == "all" {
@@ -321,7 +351,7 @@
 ///   nonnegative integer.
 /// -> none | array
 #let window(members, at, key: value => value, before: 0, after: 0) = {
-  import "keys.typ": require, position-of
+  import "keys.typ": position-of, require
 
   require(
     type(before) == int and before >= 0,
@@ -372,7 +402,7 @@
 /// - key (function): receives one member; returns its key.
 /// -> array
 #let children(members, of, parent, key: value => value) = {
-  import "keys.typ": require, hierarchy-keys, parent-key
+  import "keys.typ": hierarchy-keys, parent-key, require
 
   require(of != none, message: "children `of` cannot be `none`")
   let member-keys = hierarchy-keys(members, key, "children")
@@ -419,7 +449,7 @@
 /// - key (function): receives one member; returns its key.
 /// -> array
 #let descendants(members, of, parent, key: value => value) = {
-  import "keys.typ": require, hierarchy-keys, parent-chain
+  import "keys.typ": hierarchy-keys, parent-chain, require
 
   require(of != none, message: "descendants `of` cannot be `none`")
   let member-keys = hierarchy-keys(members, key, "descendants")
@@ -456,7 +486,7 @@
 /// - key (function): receives one member; returns its key.
 /// -> none | array
 #let ancestors(members, at, parent, key: value => value) = {
-  import "keys.typ": require, hierarchy-keys, ancestor-members
+  import "keys.typ": ancestor-members, hierarchy-keys, require
 
   require(at != none, message: "ancestors `at` cannot be `none`")
   let member-keys = hierarchy-keys(members, key, "ancestors")
@@ -496,7 +526,7 @@
 /// - key (function): receives one member; returns its key.
 /// -> none | array
 #let lineage(members, at, parent, key: value => value) = {
-  import "keys.typ": require, hierarchy-keys, ancestor-members
+  import "keys.typ": ancestor-members, hierarchy-keys, require
 
   require(at != none, message: "lineage `at` cannot be `none`")
   let member-keys = hierarchy-keys(members, key, "lineage")
@@ -541,7 +571,7 @@
 /// - key (function): receives one member; returns its key.
 /// -> none | array
 #let siblings(members, at, parent, key: value => value) = {
-  import "keys.typ": require, hierarchy-keys, parent-key
+  import "keys.typ": hierarchy-keys, parent-key, require
 
   require(at != none, message: "siblings `at` cannot be `none`")
   let member-keys = hierarchy-keys(members, key, "siblings")

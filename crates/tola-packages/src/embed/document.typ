@@ -298,9 +298,11 @@
     let skipped = none
     for heading in found {
       if heading.outlined {
-        while ancestors.len() > 0 and (
-          ancestors.last() >= heading.level
-            or (skipped != none and ancestors.last() >= skipped)
+        while (
+          ancestors.len() > 0
+            and (
+              ancestors.last() >= heading.level or (skipped != none and ancestors.last() >= skipped)
+            )
         ) {
           ancestors = ancestors.slice(0, ancestors.len() - 1)
         }
@@ -326,16 +328,18 @@
       found = found.filter(heading => heading.level <= depth)
     }
     let nesting = nesting-of(found)
-    found.enumerate().map(((index, heading)) => (
-      level: heading.level,
-      nesting: nesting.at(index),
-      number: if heading.numbering == none { none } else {
-        numbering(heading.numbering, ..heading-counter.at(heading.location()))
-      },
-      text: plain-text(heading.body),
-      label: heading.at("label", default: none),
-      location: heading.location(),
-      outlined: heading.outlined,
-    ))
+    found
+      .enumerate()
+      .map(((index, heading)) => (
+        level: heading.level,
+        nesting: nesting.at(index),
+        number: if heading.numbering == none { none } else {
+          numbering(heading.numbering, ..heading-counter.at(heading.location()))
+        },
+        text: plain-text(heading.body),
+        label: heading.at("label", default: none),
+        location: heading.location(),
+        outlined: heading.outlined,
+      ))
   }
 }

@@ -35,8 +35,8 @@
 // `parse-sources`.
 
 #import "requirements.typ": (
-  any, schema, optional, nullable, literal, enum-of, array-of, dictionary-of, one-or-many,
-  tuple, lazy, union, variant, trim, non-empty, refine, check, map, convert, describe, inspect,
-  parse, try-parse, ok, err, issue, format-issues, min-length, max-length, matches,
-  at-least, at-most, email, ipv4, ipv6, ip, http-url, https-url, url-path, date, timestamp,
+  any, array-of, at-least, at-most, check, convert, date, describe, dictionary-of, email, enum-of, err, format-issues,
+  http-url, https-url, inspect, ip, ipv4, ipv6, issue, lazy, literal, map, matches, max-length, min-length, non-empty,
+  nullable, ok, one-or-many, optional, parse, refine, schema, timestamp, trim, try-parse, tuple, union, url-path,
+  variant,
 )

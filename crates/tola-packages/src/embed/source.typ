@@ -139,7 +139,7 @@
 /// - schema (type | dictionary | function): a metadata declaration, or a function from each complete source record to its declaration.
 /// -> array
 #let parse-sources = {
-  import "@tola/host:0.0.0": parse-source, report-source-issues, report-error
+  import "@tola/host:0.0.0": parse-source, report-error, report-source-issues
   import "@tola/schema:0.0.0": issue, try-parse
 
   (sources, schema) => {
@@ -154,8 +154,7 @@
     for (index, source) in sources.enumerate() {
       if not (type(source) == dictionary and "path" in source and type(source.path) == str and "meta" in source) {
         report-error(
-          "parse-sources requires a complete source record at index " + str(index)
-            + "; found `" + repr(source) + "`",
+          "parse-sources requires a complete source record at index " + str(index) + "; found `" + repr(source) + "`",
           hint: "Pass `all-sources()` or a subset of it",
         )
       }
@@ -168,10 +167,12 @@
         continue
       }
       let found = if parsed.ok {
-        (issue(
-          "metadata must resolve to a dictionary, not " + repr(type(parsed.value)),
-          code: "schema.metadata",
-        ),)
+        (
+          issue(
+            "metadata must resolve to a dictionary, not " + repr(type(parsed.value)),
+            code: "schema.metadata",
+          ),
+        )
       } else {
         parsed.issues
       }

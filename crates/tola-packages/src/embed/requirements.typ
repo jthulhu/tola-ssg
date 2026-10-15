@@ -12,13 +12,31 @@
     ..properties.named(),
   )
   let assert-schema(candidate, owner) = {
-    let valid = type(candidate) == type or (
-      type(candidate) == dictionary
-        and candidate.at("marker", default: none) == schema-marker
-        and candidate.at("kind", default: none) in (
-          "any", "object", "optional", "nullable", "literal", "enum",
-          "array", "dictionary", "many", "tuple", "lazy", "union",
-          "variant", "trim", "check", "convert", "describe",
+    let valid = (
+      type(candidate) == type
+        or (
+          type(candidate) == dictionary
+            and candidate.at("marker", default: none) == schema-marker
+            and candidate.at("kind", default: none)
+              in (
+                "any",
+                "object",
+                "optional",
+                "nullable",
+                "literal",
+                "enum",
+                "array",
+                "dictionary",
+                "many",
+                "tuple",
+                "lazy",
+                "union",
+                "variant",
+                "trim",
+                "check",
+                "convert",
+                "describe",
+              )
         )
     )
     if not valid {
@@ -37,14 +55,21 @@
     )
   }
   let assert-positional(arguments, owner) = {
-    require(arguments.named().len() == 0, message: owner + ": unexpected named arguments `" + repr(arguments.named().keys()) + "`")
+    require(
+      arguments.named().len() == 0,
+      message: owner + ": unexpected named arguments `" + repr(arguments.named().keys()) + "`",
+    )
   }
   let assert-path(path, owner) = {
     require(type(path) == array, message: owner + ": `path` must be an array; found `" + repr(type(path)) + "`")
     for (index, segment) in path.enumerate() {
       require(
         type(segment) == str or (type(segment) == int and segment >= 0),
-        message: owner + ": `path` must contain string keys or nonnegative integer indices; found `" + repr(segment) + "` at index " + str(index),
+        message: owner
+          + ": `path` must contain string keys or nonnegative integer indices; found `"
+          + repr(segment)
+          + "` at index "
+          + str(index),
       )
     }
   }
@@ -60,22 +85,38 @@
   }
   let assert-issue(problem, owner) = {
     require(
-      type(problem) == dictionary and problem.len() == 5
+      type(problem) == dictionary
+        and problem.len() == 5
         and ("code", "path", "message", "notes", "children").all(key => key in problem),
-      message: owner + ": expected an Issue with exactly `code`, `path`, `message`, `notes`, and `children`; found `" + repr(problem) + "`",
+      message: owner
+        + ": expected an Issue with exactly `code`, `path`, `message`, `notes`, and `children`; found `"
+        + repr(problem)
+        + "`",
     )
-    require(type(problem.code) == str, message: owner + ": Issue `code` must be a string; found `" + repr(type(problem.code)) + "`")
-    require(type(problem.message) == str, message: owner + ": Issue `message` must be a string; found `" + repr(type(problem.message)) + "`")
+    require(
+      type(problem.code) == str,
+      message: owner + ": Issue `code` must be a string; found `" + repr(type(problem.code)) + "`",
+    )
+    require(
+      type(problem.message) == str,
+      message: owner + ": Issue `message` must be a string; found `" + repr(type(problem.message)) + "`",
+    )
     assert-path(problem.path, owner + " Issue")
     require(
       type(problem.notes) == array and problem.notes.all(note => type(note) == str),
       message: owner + ": Issue `notes` must be an array of strings; found `" + repr(problem.notes) + "`",
     )
-    require(type(problem.children) == array, message: owner + ": Issue `children` must be an array; found `" + repr(type(problem.children)) + "`")
+    require(
+      type(problem.children) == array,
+      message: owner + ": Issue `children` must be an array; found `" + repr(type(problem.children)) + "`",
+    )
     for child in problem.children { assert-issue(child, owner) }
   }
   let assert-issues(issues, owner) = {
-    require(type(issues) == array, message: owner + ": expected an array of Issue values; found `" + repr(type(issues)) + "`")
+    require(
+      type(issues) == array,
+      message: owner + ": expected an array of Issue values; found `" + repr(type(issues)) + "`",
+    )
     for problem in issues { assert-issue(problem, owner) }
   }
   let ok(value) = (ok: true, value: value)
@@ -88,8 +129,7 @@
   }
   let assert-result(converted) = {
     require(
-      type(converted) == dictionary and converted.len() == 2
-        and "ok" in converted and type(converted.ok) == bool,
+      type(converted) == dictionary and converted.len() == 2 and "ok" in converted and type(converted.ok) == bool,
       message: "convert: the callback must return `ok(value)` or `err(..issues)`; found `" + repr(converted) + "`",
     )
     if converted.ok {
@@ -102,7 +142,10 @@
   }
   let any = declaration("any")
   let schema(fields, unknown: "error") = {
-    require(type(fields) == dictionary, message: "schema: `fields` must be a dictionary; found `" + repr(type(fields)) + "`")
+    require(
+      type(fields) == dictionary,
+      message: "schema: `fields` must be a dictionary; found `" + repr(type(fields)) + "`",
+    )
     require(
       unknown == "error" or unknown == "keep",
       message: "schema: `unknown` must be `\"error\"` or `\"keep\"`; found `" + repr(unknown) + "`",
@@ -114,7 +157,10 @@
     assert-schema(member, "optional")
     require(options.pos().len() == 0, message: "optional: pass the fallback as `default: value`")
     let named = options.named()
-    require(named.keys().all(key => key == "default"), message: "optional: only `default` is a named option; found `" + repr(named.keys()) + "`")
+    require(
+      named.keys().all(key => key == "default"),
+      message: "optional: only `default` is a named option; found `" + repr(named.keys()) + "`",
+    )
     declaration("optional", inner: member, defaults: named)
   }
   let nullable(member) = {
@@ -123,7 +169,10 @@
   }
   let literal(value) = declaration("literal", value: value)
   let enum-of(values) = {
-    require(type(values) == array and values.len() != 0, message: "enum-of: expected a nonempty array; found `" + repr(values) + "`")
+    require(
+      type(values) == array and values.len() != 0,
+      message: "enum-of: expected a nonempty array; found `" + repr(values) + "`",
+    )
     declaration("enum", values: values)
   }
   let array-of(member) = {
@@ -172,13 +221,23 @@
         type(branch-schema) == dictionary and branch-schema.kind == "object",
         message: "variant: branch at index " + str(index) + " must be an object declaration",
       )
-      require(tag-key in branch-schema.fields, message: "variant: branch at index " + str(index) + " must declare tag key `" + tag-key + "`")
+      require(
+        tag-key in branch-schema.fields,
+        message: "variant: branch at index " + str(index) + " must declare tag key `" + tag-key + "`",
+      )
       let tag-schema = unannotated(branch-schema.fields.at(tag-key))
       require(
         type(tag-schema) == dictionary and tag-schema.kind == "literal",
-        message: "variant: tag `" + tag-key + "` in branch at index " + str(index) + " must be a required `literal(...)` without a default or transformation",
+        message: "variant: tag `"
+          + tag-key
+          + "` in branch at index "
+          + str(index)
+          + " must be a required `literal(...)` without a default or transformation",
       )
-      require(tag-schema.value not in tags, message: "variant: tag value `" + repr(tag-schema.value) + "` occurs more than once")
+      require(
+        tag-schema.value not in tags,
+        message: "variant: tag value `" + repr(tag-schema.value) + "` occurs more than once",
+      )
       tags.push(tag-schema.value)
     }
     declaration("variant", tag-key: tag-key, branches: branches.pos(), tags: tags)
@@ -207,7 +266,13 @@
       let fields = object-fields(member)
       let dependencies = ()
       for (index, key) in on.enumerate() {
-        require(type(key) == str, message: "check: `on` must contain string field names; found `" + repr(type(key)) + "` at index " + str(index))
+        require(
+          type(key) == str,
+          message: "check: `on` must contain string field names; found `"
+            + repr(type(key))
+            + "` at index "
+            + str(index),
+        )
         require(key in fields, message: "check: dependency `" + key + "` is not a declared field")
         require(key not in dependencies, message: "check: dependency `" + key + "` occurs more than once")
         dependencies.push(key)
@@ -220,7 +285,10 @@
     require(type(message) == str, message: "refine: `message` must be a string; found `" + repr(type(message)) + "`")
     check(member, value => {
       let accepted = predicate(value)
-      require(type(accepted) == bool, message: "refine: the predicate must return a boolean; found `" + repr(type(accepted)) + "`")
+      require(
+        type(accepted) == bool,
+        message: "refine: the predicate must return a boolean; found `" + repr(type(accepted)) + "`",
+      )
       if accepted { () } else { (issue(message),) }
     })
   }
@@ -246,11 +314,17 @@
   }
   let describe(member, description) = {
     assert-schema(member, "describe")
-    require(type(description) == str, message: "describe: the description must be a string; found `" + repr(type(description)) + "`")
+    require(
+      type(description) == str,
+      message: "describe: the description must be a string; found `" + repr(type(description)) + "`",
+    )
     declaration("describe", inner: member, description: description)
   }
   let output-description(kind, ..properties) = (
-    kind: kind, presence: "required", description: none, ..properties.named(),
+    kind: kind,
+    presence: "required",
+    description: none,
+    ..properties.named(),
   )
   let present-description(description) = {
     description.presence = "required"
@@ -283,7 +357,8 @@
       return output-description(kind, element: present-description(inspect(member.inner)))
     }
     if member.kind == "tuple" {
-      return output-description("tuple",
+      return output-description(
+        "tuple",
         members: member.members.map(position => present-description(inspect(position))),
         rest: if member.rest == none { none } else { present-description(inspect(member.rest)) },
       )
@@ -300,7 +375,8 @@
       return (..output-description("union", members: members), presence: presence)
     }
     if member.kind == "variant" {
-      return output-description("variant",
+      return output-description(
+        "variant",
         tag-key: member.tag-key,
         branches: member.branches.map(inspect),
         tags: member.tags,
@@ -334,11 +410,20 @@
     inner
   }
   let accept(value, origins: (), field-pass: none) = (
-    ok: true, present: true, value: value, issues: (), origins: origins, field-pass: field-pass,
+    ok: true,
+    present: true,
+    value: value,
+    issues: (),
+    origins: origins,
+    field-pass: field-pass,
   )
   let omitted = (ok: true, present: false, issues: (), origins: (), field-pass: none)
   let reject(issues, origins: (), field-pass: none) = (
-    ok: false, present: true, issues: issues, origins: origins, field-pass: field-pass,
+    ok: false,
+    present: true,
+    issues: issues,
+    origins: origins,
+    field-pass: field-pass,
   )
   let prefix-paths(nodes, segment) = nodes.map(node => (..node, path: (segment,) + node.path))
   let starts-with-path(path, prefix) = path.len() >= prefix.len() and path.slice(0, prefix.len()) == prefix
@@ -654,13 +739,33 @@
   }
   import "schema-rules.typ": rules
   (
-    any: any, schema: schema, optional: optional, nullable: nullable,
-    literal: literal, enum-of: enum-of, array-of: array-of,
-    dictionary-of: dictionary-of, one-or-many: one-or-many, tuple: tuple,
-    lazy: lazy, union: union, variant: variant, trim: trim,
-    non-empty: non-empty, refine: refine, check: check, map: map,
-    convert: convert, describe: describe, inspect: inspect, parse: parse, try-parse: try-parse,
-    ok: ok, err: err, issue: issue, format-issues: format-issues,
+    any: any,
+    schema: schema,
+    optional: optional,
+    nullable: nullable,
+    literal: literal,
+    enum-of: enum-of,
+    array-of: array-of,
+    dictionary-of: dictionary-of,
+    one-or-many: one-or-many,
+    tuple: tuple,
+    lazy: lazy,
+    union: union,
+    variant: variant,
+    trim: trim,
+    non-empty: non-empty,
+    refine: refine,
+    check: check,
+    map: map,
+    convert: convert,
+    describe: describe,
+    inspect: inspect,
+    parse: parse,
+    try-parse: try-parse,
+    ok: ok,
+    err: err,
+    issue: issue,
+    format-issues: format-issues,
     ..rules(check, issue, require),
   )
 }
@@ -1450,11 +1555,15 @@
 /// #assert.eq(try-parse((permalink: "/notes/#part"), page).issues.at(0).path, ("permalink",))
 /// ```
 /// Related: parse, try-parse, @tola/address
-#let url-path = convert(str, path => {
-  // Other schema declarations can be imported without a Tola host.
-  import "@tola/host:0.0.0": parse-url-path
-  parse-url-path(path)
-}, output: str)
+#let url-path = convert(
+  str,
+  path => {
+    // Other schema declarations can be imported without a Tola host.
+    import "@tola/host:0.0.0": parse-url-path
+    parse-url-path(path)
+  },
+  output: str,
+)
 
 /// A calendar date, returned as a native date-only `datetime`.
 ///
@@ -1472,10 +1581,14 @@
 /// #assert.eq(checked.issues.first().path, ("published",))
 /// ```
 /// Related: timestamp, parse, try-parse
-#let date = convert(union(datetime, str), value => {
-  import "@tola/host:0.0.0": parse-date
-  parse-date(value)
-}, output: datetime)
+#let date = convert(
+  union(datetime, str),
+  value => {
+    import "@tola/host:0.0.0": parse-date
+    parse-date(value)
+  },
+  output: datetime,
+)
 
 /// A timestamp, returned as `(rfc3339: str, unix-seconds: int, subsecond: str)`.
 ///
@@ -1507,7 +1620,11 @@
 /// #assert.eq(checked.issues.first().path, ("published",))
 /// ```
 /// Related: date, parse, try-parse, @tola/web
-#let timestamp = convert(union(datetime, str), value => {
-  import "@tola/host:0.0.0": parse-timestamp
-  parse-timestamp(value)
-}, output: schema((rfc3339: str, unix-seconds: int, subsecond: str)))
+#let timestamp = convert(
+  union(datetime, str),
+  value => {
+    import "@tola/host:0.0.0": parse-timestamp
+    parse-timestamp(value)
+  },
+  output: schema((rfc3339: str, unix-seconds: int, subsecond: str)),
+)
